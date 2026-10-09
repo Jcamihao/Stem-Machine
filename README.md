@@ -1,3 +1,7 @@
+> **Fork pessoal** de [danielravina/stemkit](https://github.com/danielravina/stemkit) (licença MIT, aviso de copyright mantido em `LICENSE`).
+> Uso próprio, sem distribuição. Diferenças em relação ao original: sem atualização automática e sem telemetria.
+> O original está configurado como remote `upstream` para trazer correções dele quando eu quiser.
+
 # StemKit
 
 Split any YouTube song into isolated stems — **vocals, drums, bass, guitar, piano** and more — right on your machine.
