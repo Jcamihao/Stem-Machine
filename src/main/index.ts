@@ -12,7 +12,7 @@ import { existsSync, copyFileSync, mkdirSync, createReadStream, statSync, writeF
 import { spawn } from 'child_process'
 import { createServer, type Server } from 'http'
 import type { AddressInfo } from 'net'
-import type { AppSettings, SectionMap } from '../shared/types'
+import type { AppSettings, BeatGrid, SectionMap } from '../shared/types'
 import {
   detectTools,
   bootstrap,
@@ -30,7 +30,7 @@ import {
   getStatus
 } from './env'
 import { loadSettings, saveSettings } from './settings'
-import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUDIO_EXTENSIONS, loadBeats, loadSections, saveSections } from './library'
+import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUDIO_EXTENSIONS, loadBeats, saveBeats, loadSections, saveSections } from './library'
 import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addStems, analyzeSections } from './pipeline'
 import { initUpdater } from './updater'
 import { guideClips } from './voice'
@@ -274,6 +274,10 @@ app.whenReady().then(async () => {
   ipcMain.handle('sections:save', (_e, videoId: string, map: SectionMap) => {
     if (!inLibrary(videoId)) throw new Error('Song not found')
     saveSections(videoId, map)
+  })
+  ipcMain.handle('beats:save', (_e, videoId: string, grid: BeatGrid) => {
+    if (!inLibrary(videoId)) throw new Error('Song not found')
+    saveBeats(videoId, grid)
   })
   ipcMain.handle('beats:analyze', async (_e, videoId: string) => {
     if (!inLibrary(videoId)) throw new Error('Song not found')

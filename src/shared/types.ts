@@ -84,6 +84,8 @@ export interface BeatGrid {
   beatsPerBar: number
   beats: number[]
   downbeats: number[]
+  // o usuário marcou o "1" à mão em algum ponto ("marcar o 1")
+  edited?: boolean
 }
 
 // seções detectadas (python/sections.py); label: intro, verse, chorus, bridge,
@@ -151,6 +153,7 @@ export interface StemKitApi {
   getBuffers(videoId: string): Promise<Record<string, Uint8Array>>
   getBeats(videoId: string): Promise<BeatGrid | null>
   analyzeBeats(videoId: string): Promise<BeatGrid>
+  saveBeats(videoId: string, grid: BeatGrid): Promise<void>
   saveGenerated(videoId: string, stem: 'click' | 'guide', wav: Uint8Array): Promise<void>
   getGuideClips(): Promise<Record<string, Uint8Array>>
   addStems(videoId: string, stems: string[]): Promise<void>

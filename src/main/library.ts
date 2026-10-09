@@ -73,6 +73,11 @@ export function loadBeats(videoId: string): BeatGrid | null {
   }
 }
 
+// grade corrigida pelo usuário ("marcar o 1")
+export function saveBeats(videoId: string, grid: BeatGrid): void {
+  writeFileSync(beatsPath(videoId), JSON.stringify(grid))
+}
+
 export function rawDownloadPath(videoId: string): string {
   return join(songDir(videoId), 'raw.%(ext)s')
 }

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { AppSettings, BeatGrid, SectionMap, Song, StemId } from '../../../shared/types'
+import type { AppSettings, BeatGrid, Section, SectionMap, Song, StemId } from '../../../shared/types'
 import { engine, decodePayload, isAudible, renderClick, type BufferMap } from '../lib/engine'
 import { encodeWav } from '../lib/wav'
 import { decodeGuideClips, renderGuide, type GuideClips } from '../lib/guide'
+import { markDownbeat } from '../lib/edits'
+import { fmtTime } from '../lib/format'
 import { buildStemMeta, STEM_INFO } from '../lib/stems'
 import { StudioHeader, type MenuItem } from './studio/StudioHeader'
 import { Ruler } from './studio/Ruler'
@@ -405,19 +407,37 @@ export function Player({ song, onBack }: Props): React.ReactElement {
       })
   }, [song.videoId])
 
-  // correção manual do nome: fica salva e marca o mapa como editado
-  const renameSection = useCallback(
-    (index: number, label: string): void => {
+  // edição das seções (mover, dividir, juntar, excluir, renomear): salva e marca
+  // o mapa como editado; a guia se refaz sozinha porque depende de `sections`
+  const updateSections = useCallback(
+    (next: Section[]): void => {
       if (!sections) return
-      const next: SectionMap = {
-        ...sections,
-        edited: true,
-        sections: sections.sections.map((s, i) => (i === index ? { ...s, label } : s))
-      }
-      setSections(next)
-      void window.stemkit.saveSections(song.videoId, next)
+      const map: SectionMap = { ...sections, edited: true, sections: next }
+      setSections(map)
+      void window.stemkit.saveSections(song.videoId, map)
     },
     [sections, song.videoId]
+  )
+
+  // aviso rápido de confirmação (ex.: "1 marcado em 1:23")
+  const [flash, setFlash] = useState<string | null>(null)
+  useEffect(() => {
+    if (!flash) return
+    const id = setTimeout(() => setFlash(null), 2500)
+    return () => clearTimeout(id)
+  }, [flash])
+
+  /* "marcar o 1": a batida mais próxima da posição atual vira o "1" (daqui em diante
+     ou na música toda). Salva a grade; click e guia se refazem porque dependem de `beats` */
+  const markOne = useCallback(
+    (wholeSong: boolean): void => {
+      if (!beats) return
+      const next = markDownbeat(beats, posRef.current, wholeSong)
+      setBeats(next)
+      void window.stemkit.saveBeats(song.videoId, next)
+      setFlash(`1 marcado em ${fmtTime(posRef.current)}${wholeSong ? ' (música toda)' : ' (daqui em diante)'}`)
+    },
+    [beats, song.videoId]
   )
 
   const loopSection = useCallback(
@@ -505,10 +525,11 @@ export function Player({ song, onBack }: Props): React.ReactElement {
       else if (e.code === 'KeyB') markB()
       else if (e.code === 'KeyL') toggleLoop()
       else if (e.code === 'KeyC') toggleClick()
+      else if (e.code === 'Digit1' || e.code === 'Numpad1') markOne(e.shiftKey)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [togglePlay, markA, markB, toggleLoop, toggleClick])
+  }, [togglePlay, markA, markB, toggleLoop, toggleClick, markOne])
 
   const toggleMute = (id: StemId): void => {
     const turningOn = !mutes.has(id)
@@ -578,9 +599,12 @@ export function Player({ song, onBack }: Props): React.ReactElement {
       onClick: analyzeSections,
       disabled: sectionsBusy
     },
+    { label: 'Marcar o 1 aqui (tecla 1)', onClick: () => markOne(false), disabled: !beats },
+    { label: 'Marcar o 1 aqui, música toda (Shift+1)', onClick: () => markOne(true), disabled: !beats },
     ...(loopA !== null || loopB !== null ? [{ label: 'Limpar loop', onClick: clearLoop }] : [])
   ]
   const notices = [
+    flash,
     analyzing && 'Detectando batidas…',
     sectionsBusy && 'Detectando seções…',
     clickError && `Metrônomo: ${clickError}`,
@@ -612,8 +636,10 @@ export function Player({ song, onBack }: Props): React.ReactElement {
                 <SectionBar
                   sections={sections.sections}
                   duration={duration}
+                  downbeats={beats?.downbeats ?? []}
+                  getPosition={getPosition}
                   onSeek={seekTo}
-                  onRename={renameSection}
+                  onChange={updateSections}
                   onLoop={loopSection}
                 />
               </div>

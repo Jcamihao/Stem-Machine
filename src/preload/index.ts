@@ -18,6 +18,7 @@ const api: StemKitApi = {
   getBuffers: (videoId) => ipcRenderer.invoke('song:buffers', videoId),
   getBeats: (videoId) => ipcRenderer.invoke('song:beats', videoId),
   analyzeBeats: (videoId) => ipcRenderer.invoke('beats:analyze', videoId),
+  saveBeats: (videoId, grid) => ipcRenderer.invoke('beats:save', videoId, grid),
   saveGenerated: (videoId, stem, wav) => ipcRenderer.invoke('generated:save', videoId, stem, wav),
   getGuideClips: () => ipcRenderer.invoke('voice:clips'),
   addStems: (videoId, stems) => ipcRenderer.invoke('stems:add', videoId, stems),
