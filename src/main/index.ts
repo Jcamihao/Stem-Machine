@@ -98,7 +98,7 @@ function showAboutWindow(): void {
 
 function installApplicationMenu(): void {
   const aboutItem: MenuItemConstructorOptions = {
-    label: 'About StemKit',
+    label: 'About Stem-machine',
     click: showAboutWindow
   }
   const template: MenuItemConstructorOptions[] =
@@ -142,7 +142,7 @@ function installApplicationMenu(): void {
 function requireExportFfmpeg(): string {
   const ffmpeg = getStatus().ffmpeg.path
   if (!ffmpeg) {
-    throw new Error('Something went wrong with the built-in audio tools. Try reinstalling StemKit.')
+    throw new Error('Something went wrong with the built-in audio tools. Try reinstalling Stem-machine.')
   }
   return ffmpeg
 }
@@ -354,10 +354,9 @@ app.whenReady().then(async () => {
     try {
       const url = new URL(value)
       const youtube = ['youtube.com', 'www.youtube.com', 'youtu.be'].includes(url.hostname)
-      const website = url.hostname === 'stemkit.pages.dev'
       const projectGithub =
-        url.hostname === 'github.com' && /^\/danvelope\/stemkit(?:\/|$)/.test(url.pathname)
-      if (url.protocol === 'https:' && (youtube || website || projectGithub)) {
+        url.hostname === 'github.com' && /^\/Jcamihao\/stem-machine(?:\/|$)/.test(url.pathname)
+      if (url.protocol === 'https:' && (youtube || projectGithub)) {
         shell.openExternal(url.toString())
       }
     } catch {

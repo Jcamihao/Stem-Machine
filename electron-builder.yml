@@ -1,5 +1,5 @@
-appId: com.stemkit.app
-productName: StemKit
+appId: com.jcamihao.stemmachine
+productName: Stem-machine
 afterPack: scripts/after-pack.cjs
 directories:
   output: release
@@ -43,9 +43,9 @@ nsis:
 linux:
   icon: build/icon.png
   category: AudioVideo
-  executableName: stemkit
-  vendor: danvelope
-  maintainer: danvelope
+  executableName: stem-machine
+  vendor: Jcamihao
+  maintainer: Jcamihao
   synopsis: Local YouTube stem splitter and player
   description: Split songs into isolated stems locally — vocals, drums, bass and more.
   target:
@@ -56,7 +56,7 @@ linux:
       arch:
         - x64
   desktop:
-    StartupWMClass: stemkit
+    StartupWMClass: stem-machine
   extraResources:
     - from: extras/ffmpeg-linux/ffmpeg
       to: ffmpeg/ffmpeg
