@@ -39,6 +39,8 @@ export function Player({ song, settings }: Props): React.ReactElement {
   const posRef = useRef(0)
   const playingRef = useRef(false)
   const videoSyncAtRef = useRef(0)
+  const prevPosRef = useRef(0)
+  const loopActiveRef = useRef(false)
 
   const VIDEO_DRIFT_LIMIT = 0.4
   const VIDEO_RESYNC_COOLDOWN = 2000
@@ -56,6 +58,9 @@ export function Player({ song, settings }: Props): React.ReactElement {
   const [solos, setSolos] = useState<Set<StemId>>(new Set())
   const [master, setMaster] = useState(0.9)
   const [preset, setPreset] = useState<PresetId | 'custom'>('all')
+  const [loopA, setLoopA] = useState<number | null>(null)
+  const [loopB, setLoopB] = useState<number | null>(null)
+  const [loopOn, setLoopOn] = useState(false)
 
   const stemMeta = useMemo(() => buildStemMeta(Object.keys(buffers) as StemId[]), [buffers])
 
@@ -85,7 +90,13 @@ export function Player({ song, settings }: Props): React.ReactElement {
     setMutes(new Set())
     setSolos(new Set())
     setPreset('all')
+    setLoopA(null)
+    setLoopB(null)
+    setLoopOn(false)
+    loopActiveRef.current = false
+    prevPosRef.current = 0
     engine.stopAll()
+    engine.setLoop(null, null, false)
 
     let cancelled = false
     setDecoding(true)
@@ -159,6 +170,14 @@ export function Player({ song, settings }: Props): React.ReactElement {
     const tick = (): void => {
       posRef.current = engine.expected()
 
+      // o loop deu a volta (B -> A): o video nao repete sozinho, entao pula junto
+      const wrapped = loopActiveRef.current && posRef.current < prevPosRef.current - 0.3
+      prevPosRef.current = posRef.current
+      if (wrapped) {
+        videoSyncAtRef.current = performance.now()
+        hostRef.current?.seek(posRef.current)
+      }
+
       const dur = engine.trackDuration()
       if (dur > 0 && posRef.current >= dur - 0.03) {
         posRef.current = dur
@@ -229,6 +248,35 @@ export function Player({ song, settings }: Props): React.ReactElement {
     [duration]
   )
 
+  const applyLoop = useCallback((a: number | null, b: number | null, on: boolean): void => {
+    setLoopA(a)
+    setLoopB(b)
+    setLoopOn(on)
+    loopActiveRef.current = on && a !== null && b !== null
+    engine.setLoop(a, b, on)
+  }, [])
+
+  const markA = useCallback((): void => {
+    const t = posRef.current
+    // A depois do B antigo invalida o B
+    if (loopB !== null && t >= loopB - 0.2) applyLoop(t, null, false)
+    else applyLoop(t, loopB, loopB !== null)
+  }, [loopB, applyLoop])
+
+  const markB = useCallback((): void => {
+    const t = posRef.current
+    const a = loopA ?? 0 // B sem A: o loop vai do começo da música até o B
+    if (t <= a + 0.2) return
+    applyLoop(a, t, true)
+  }, [loopA, applyLoop])
+
+  const toggleLoop = useCallback((): void => {
+    if (loopA === null || loopB === null) return
+    applyLoop(loopA, loopB, !loopOn)
+  }, [loopA, loopB, loopOn, applyLoop])
+
+  const clearLoop = useCallback((): void => applyLoop(null, null, false), [applyLoop])
+
   const getPosition = useCallback((): number => {
     void bump
     return posRef.current
@@ -247,14 +295,20 @@ export function Player({ song, settings }: Props): React.ReactElement {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) {
+      if (e.target instanceof HTMLInputElement) return
+      if (e.code === 'Space') {
         e.preventDefault()
         togglePlay()
+        return
       }
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (e.code === 'KeyA') markA()
+      else if (e.code === 'KeyB') markB()
+      else if (e.code === 'KeyL') toggleLoop()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [togglePlay])
+  }, [togglePlay, markA, markB, toggleLoop])
 
   const applyPreset = (p: PresetId): void => {
     setPreset(p)
@@ -398,6 +452,13 @@ export function Player({ song, settings }: Props): React.ReactElement {
             master={master}
             onMaster={setMaster}
             youtubeUrl={youtubeUrl ?? undefined}
+            loopA={loopA}
+            loopB={loopB}
+            loopOn={loopOn}
+            onMarkA={markA}
+            onMarkB={markB}
+            onToggleLoop={toggleLoop}
+            onClearLoop={clearLoop}
           />
 
           <div className="mt-4 space-y-2">

@@ -29,6 +29,9 @@ export class StemEngine {
   private playing = false
   private anchorYt = 0
   private anchorCtx = 0
+  private loopA: number | null = null
+  private loopB: number | null = null
+  private loopOn = false
   rate = 1
 
   private ensureCtx(): AudioContext {
@@ -76,8 +79,23 @@ export class StemEngine {
     this.align(time)
   }
 
+  // loop A-B toca em repeticao nativa (sem corte) enquanto estiver ligado
+  private looping(): boolean {
+    return this.loopOn && this.loopA !== null && this.loopB !== null && this.loopB > this.loopA
+  }
+
+  setLoop(a: number | null, b: number | null, on: boolean): void {
+    const t = this.expected()
+    this.loopA = a
+    this.loopB = b
+    this.loopOn = on
+    if (this.playing) this.align(t)
+  }
+
   align(time: number): void {
     this.stopSources()
+    // fora da regiao (depois do B) volta para o A; antes do A toca ate o B e entra no loop
+    if (this.looping() && time >= this.loopB!) time = this.loopA!
     this.anchorYt = time
     if (!this.ctx || !this.playing || !this.hasBuffers()) return
     const ctx = this.ctx
@@ -89,6 +107,11 @@ export class StemEngine {
       const src = ctx.createBufferSource()
       src.buffer = buf
       src.playbackRate.value = this.rate
+      if (this.looping()) {
+        src.loop = true
+        src.loopStart = this.loopA!
+        src.loopEnd = Math.min(this.loopB!, buf.duration)
+      }
       src.connect(gain)
       src.start(startAt, Math.min(Math.max(0, time), Math.max(0, buf.duration - 0.01)))
       this.sources.push(src)
@@ -98,7 +121,11 @@ export class StemEngine {
 
   expected(): number {
     if (!this.ctx || !this.playing) return this.anchorYt
-    return this.anchorYt + (this.ctx.currentTime - this.anchorCtx) * this.rate
+    const raw = this.anchorYt + (this.ctx.currentTime - this.anchorCtx) * this.rate
+    if (this.looping() && raw >= this.loopB!) {
+      return this.loopA! + ((raw - this.loopA!) % (this.loopB! - this.loopA!))
+    }
+    return raw
   }
 
   trackDuration(): number {

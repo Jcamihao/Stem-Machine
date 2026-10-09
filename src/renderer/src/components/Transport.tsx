@@ -23,18 +23,31 @@ interface Props {
   onMaster: (v: number) => void
   // local-file songs have no video to link out to
   youtubeUrl?: string
+  loopA: number | null
+  loopB: number | null
+  loopOn: boolean
+  onMarkA: () => void
+  onMarkB: () => void
+  onToggleLoop: () => void
+  onClearLoop: () => void
 }
 
 function SeekBar({
   duration,
   getPosition,
   onSeek,
-  playing
+  playing,
+  loopA,
+  loopB,
+  loopOn
 }: {
   duration: number
   getPosition: () => number
   onSeek: (seconds: number) => void
   playing: boolean
+  loopA: number | null
+  loopB: number | null
+  loopOn: boolean
 }): React.ReactElement {
   const barRef = useRef<HTMLDivElement>(null)
   const [, force] = useState(0)
@@ -51,6 +64,7 @@ function SeekBar({
   }, [playing])
 
   const frac = duration > 0 ? Math.min(1, getPosition() / duration) : 0
+  const pct = (t: number): number => (duration > 0 ? Math.min(100, Math.max(0, (t / duration) * 100)) : 0)
 
   const seekFromEvent = (clientX: number): void => {
     const rect = barRef.current?.getBoundingClientRect()
@@ -81,6 +95,20 @@ function SeekBar({
             style={{ width: `${frac * 100}%` }}
           />
         </div>
+        {loopA !== null && loopB !== null && (
+          <div
+            className={`absolute h-3 rounded-sm border-x-2 pointer-events-none ${
+              loopOn ? 'bg-amber-300/30 border-amber-300' : 'bg-white/10 border-white/40'
+            }`}
+            style={{ left: `${pct(loopA)}%`, width: `${pct(loopB) - pct(loopA)}%` }}
+          />
+        )}
+        {loopA !== null && loopB === null && (
+          <div
+            className="absolute h-3 w-0.5 bg-amber-300 pointer-events-none"
+            style={{ left: `${pct(loopA)}%` }}
+          />
+        )}
         <div
           className="absolute w-3 h-3 rounded-full bg-white shadow transition-transform group-hover:scale-125"
           style={{ left: `calc(${frac * 100}% - 6px)` }}
@@ -103,13 +131,32 @@ export function Transport({
   onPreset,
   master,
   onMaster,
-  youtubeUrl
+  youtubeUrl,
+  loopA,
+  loopB,
+  loopOn,
+  onMarkA,
+  onMarkB,
+  onToggleLoop,
+  onClearLoop
 }: Props): React.ReactElement {
+  const hasLoop = loopA !== null && loopB !== null
+  const loopBtn =
+    'no-drag h-8 px-2.5 rounded-lg text-[12px] font-semibold transition-colors bg-white/[0.06] hover:bg-white/10 text-white/70 hover:text-white'
   return (
     <div className="glass rounded-2xl px-5 py-4 mt-4 flex flex-col gap-4">
-      <SeekBar duration={duration} getPosition={getPosition} onSeek={onSeek} playing={playing} />
+      <SeekBar
+        duration={duration}
+        getPosition={getPosition}
+        onSeek={onSeek}
+        playing={playing}
+        loopA={loopA}
+        loopB={loopB}
+        loopOn={loopOn}
+      />
 
       <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
         <button
           onClick={onTogglePlay}
           disabled={duration === 0}
@@ -121,6 +168,39 @@ export function Transport({
             <PlayIcon className="w-5 h-5 -translate-x-px" />
           )}
         </button>
+
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={onMarkA}
+            title="Marcar início do loop (A)"
+            className={`${loopBtn} ${loopA !== null ? 'text-amber-300' : ''}`}
+          >
+            A{loopA !== null ? ` ${fmtTime(loopA)}` : ''}
+          </button>
+          <button
+            onClick={onMarkB}
+            title="Marcar fim do loop (B)"
+            className={`${loopBtn} ${loopB !== null ? 'text-amber-300' : ''}`}
+          >
+            B{loopB !== null ? ` ${fmtTime(loopB)}` : ''}
+          </button>
+          <button
+            onClick={onToggleLoop}
+            disabled={!hasLoop}
+            title="Ligar/desligar o loop (L)"
+            className={`${loopBtn} disabled:opacity-40 ${
+              loopOn ? '!bg-amber-300 !text-black' : ''
+            }`}
+          >
+            Loop
+          </button>
+          {(loopA !== null || loopB !== null) && (
+            <button onClick={onClearLoop} title="Limpar o loop" className={loopBtn}>
+              ✕
+            </button>
+          )}
+        </div>
+        </div>
 
         <div className="no-drag flex items-center gap-1 bg-white/5 rounded-full p-1">
           {PRESETS.map((p) => (
