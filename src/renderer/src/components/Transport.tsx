@@ -9,8 +9,6 @@ export type ClickFactor = 0.5 | 1 | 2
 
 export interface ClickState {
   available: boolean
-  on: boolean
-  volume: number
   bpm: number | null
   factor: ClickFactor
   analyzing: boolean
@@ -44,8 +42,6 @@ interface Props {
   onToggleLoop: () => void
   onClearLoop: () => void
   click: ClickState
-  onToggleClick: () => void
-  onClickVolume: (v: number) => void
   onClickFactor: (f: ClickFactor) => void
   onAnalyzeBeats: () => void
 }
@@ -158,8 +154,6 @@ export function Transport({
   onToggleLoop,
   onClearLoop,
   click,
-  onToggleClick,
-  onClickVolume,
   onClickFactor,
   onAnalyzeBeats
 }: Props): React.ReactElement {
@@ -274,13 +268,9 @@ export function Transport({
       <div className="flex items-center gap-3 border-t border-white/[0.06] pt-3">
         {click.available ? (
           <>
-            <button
-              onClick={onToggleClick}
-              title="Ligar/desligar o click (C)"
-              className={`${loopBtn} ${click.on ? '!bg-sky-300 !text-black' : ''}`}
-            >
+            <span className="text-[12px] text-white/60" title="O click aparece como stem na lista abaixo (tecla C liga/desliga)">
               Click{click.bpm ? ` · ${Math.round(click.bpm * click.factor)} BPM` : ''}
-            </button>
+            </span>
             <div className="flex items-center gap-1">
               {([0.5, 1, 2] as ClickFactor[]).map((f) => (
                 <button
@@ -293,19 +283,6 @@ export function Transport({
                 </button>
               ))}
             </div>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={click.volume}
-              onChange={(e) => onClickVolume(parseFloat(e.target.value))}
-              title="Volume do click"
-              className="no-drag w-28"
-              style={{
-                background: `linear-gradient(to right, #7dd3fc ${click.volume * 100}%, rgba(255,255,255,0.14) ${click.volume * 100}%)`
-              }}
-            />
           </>
         ) : (
           <button

@@ -18,6 +18,7 @@ const api: StemKitApi = {
   getBuffers: (videoId) => ipcRenderer.invoke('song:buffers', videoId),
   getBeats: (videoId) => ipcRenderer.invoke('song:beats', videoId),
   analyzeBeats: (videoId) => ipcRenderer.invoke('beats:analyze', videoId),
+  saveClick: (videoId, wav) => ipcRenderer.invoke('click:save', videoId, wav),
   exportStem: (videoId, stem) => ipcRenderer.invoke('stem:export', videoId, stem),
   exportAllStems: (videoId) => ipcRenderer.invoke('stems:export-all', videoId),
   searchYouTube: (query) => ipcRenderer.invoke('search:youtube', query),

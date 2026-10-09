@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppSettings, BeatGrid, Song, StemId } from '../../../shared/types'
-import { engine, decodePayload, type BufferMap } from '../lib/engine'
+import { engine, decodePayload, isAudible, renderClick, type BufferMap } from '../lib/engine'
+import { encodeWav } from '../lib/wav'
 import { buildStemMeta } from '../lib/stems'
 import { fmtTime } from '../lib/format'
 import { SongThumb } from '../lib/thumbs'
@@ -81,8 +82,6 @@ export function Player({ song, settings }: Props): React.ReactElement {
   const [loopB, setLoopB] = useState<number | null>(null)
   const [loopOn, setLoopOn] = useState(false)
   const [beats, setBeats] = useState<BeatGrid | null>(null)
-  const [clickOn, setClickOn] = useState(false)
-  const [clickVolume, setClickVolume] = useState(0.8)
   const [clickFactor, setClickFactor] = useState<ClickFactor>(1)
   const [analyzing, setAnalyzing] = useState(false)
   const [clickError, setClickError] = useState<string | null>(null)
@@ -124,12 +123,9 @@ export function Player({ song, settings }: Props): React.ReactElement {
     engine.setLoop(null, null, false)
     songIdRef.current = song.videoId
     setBeats(null)
-    setClickOn(false)
     setClickFactor(1)
     setClickError(null)
     setAnalyzing(false)
-    engine.setClickEnabled(false)
-    engine.setClickGrid([], [])
 
     let cancelled = false
     void window.stemkit.getBeats(song.videoId).then((grid) => {
@@ -200,18 +196,32 @@ export function Player({ song, settings }: Props): React.ReactElement {
     engine.applyMix(vols, mutes, solos, master)
   }, [vols, mutes, solos, master])
 
+  // click como stem: gerado das batidas (com ½×/2×) depois que os stems carregam
   useEffect(() => {
-    const grid = beats ? applyFactor(beats, clickFactor) : { beats: [], downbeats: [] }
-    engine.setClickGrid(grid.beats, grid.downbeats)
-  }, [beats, clickFactor])
-
-  useEffect(() => {
-    engine.setClickEnabled(clickOn)
-  }, [clickOn])
-
-  useEffect(() => {
-    engine.setClickVolume(clickVolume)
-  }, [clickVolume])
+    if (decoding) return
+    if (!beats) {
+      engine.setStemBuffer('click', null)
+      setBuffers((prev) => {
+        if (!prev.click) return prev
+        const { click: _drop, ...rest } = prev
+        return rest
+      })
+      return
+    }
+    const stemDuration = Math.max(
+      0,
+      ...Object.entries(buffers)
+        .filter(([id, b]) => id !== 'click' && b)
+        .map(([, b]) => b!.duration)
+    )
+    if (stemDuration <= 0) return
+    const grid = applyFactor(beats, clickFactor)
+    const click = renderClick(grid.beats, grid.downbeats, stemDuration)
+    engine.setStemBuffer('click', click)
+    setBuffers((prev) => ({ ...prev, click }))
+    setVols((prev) => ('click' in prev ? prev : { ...prev, click: 1 }))
+    // buffers fica fora das dependências: o próprio click mudaria buffers e geraria de novo
+  }, [beats, clickFactor, decoding])
 
   useEffect(() => {
     if (!playing) return
@@ -327,7 +337,14 @@ export function Player({ song, settings }: Props): React.ReactElement {
   const clearLoop = useCallback((): void => applyLoop(null, null, false), [applyLoop])
 
   const toggleClick = useCallback((): void => {
-    if (beats) setClickOn((on) => !on)
+    if (!beats) return
+    setPreset('custom')
+    setMutes((prev) => {
+      const next = new Set(prev)
+      if (next.has('click')) next.delete('click')
+      else next.add('click')
+      return next
+    })
   }, [beats])
 
   const analyzeBeats = useCallback((): void => {
@@ -340,7 +357,6 @@ export function Player({ song, settings }: Props): React.ReactElement {
         // trocou de música enquanto analisava: o resultado já ficou salvo no disco
         if (videoId !== songIdRef.current) return
         setBeats(grid)
-        setClickOn(true)
       })
       .catch((err) => {
         if (videoId === songIdRef.current) setClickError(err instanceof Error ? err.message : String(err))
@@ -355,16 +371,27 @@ export function Player({ song, settings }: Props): React.ReactElement {
     return posRef.current
   }, [bump])
 
+  // o click só existe em memória: grava stems/click.wav antes de exportar
+  const saveClick = useCallback(async (): Promise<void> => {
+    if (buffers.click) await window.stemkit.saveClick(song.videoId, encodeWav(buffers.click))
+  }, [buffers.click, song.videoId])
+
   const exportStem = useCallback(
     (stem: string): void => {
-      void window.stemkit.exportStem(song.videoId, stem)
+      void (async () => {
+        if (stem === 'click') await saveClick()
+        await window.stemkit.exportStem(song.videoId, stem)
+      })()
     },
-    [song.videoId]
+    [song.videoId, saveClick]
   )
 
   const exportAllStems = useCallback((): void => {
-    void window.stemkit.exportAllStems(song.videoId)
-  }, [song.videoId])
+    void (async () => {
+      await saveClick()
+      await window.stemkit.exportAllStems(song.videoId)
+    })()
+  }, [song.videoId, saveClick])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -535,15 +562,11 @@ export function Player({ song, settings }: Props): React.ReactElement {
             onClearLoop={clearLoop}
             click={{
               available: !!beats,
-              on: clickOn,
-              volume: clickVolume,
               bpm: beats?.bpm ?? null,
               factor: clickFactor,
               analyzing,
               error: clickError
             }}
-            onToggleClick={toggleClick}
-            onClickVolume={setClickVolume}
             onClickFactor={setClickFactor}
             onAnalyzeBeats={analyzeBeats}
           />
@@ -564,7 +587,7 @@ export function Player({ song, settings }: Props): React.ReactElement {
                 buffer={buffers[meta.id] ?? null}
                 duration={duration}
                 getPosition={getPosition}
-                audible={!mutes.has(meta.id) && (solos.size === 0 || solos.has(meta.id))}
+                audible={isAudible(meta.id, mutes, solos)}
                 volume={vols[meta.id] ?? 1}
                 muted={mutes.has(meta.id)}
                 soloed={solos.has(meta.id)}

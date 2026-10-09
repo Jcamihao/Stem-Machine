@@ -8,7 +8,7 @@ import {
   type MenuItemConstructorOptions
 } from 'electron'
 import { join, normalize, extname } from 'path'
-import { existsSync, copyFileSync, mkdirSync, createReadStream, statSync } from 'fs'
+import { existsSync, copyFileSync, mkdirSync, createReadStream, statSync, writeFileSync } from 'fs'
 import { spawn } from 'child_process'
 import { createServer, type Server } from 'http'
 import type { AddressInfo } from 'net'
@@ -252,6 +252,11 @@ app.whenReady().then(async () => {
   // só músicas da biblioteca: o id vira caminho de pasta
   const inLibrary = (videoId: string): boolean => loadSongs().some((s) => s.videoId === videoId)
   ipcMain.handle('song:beats', (_e, videoId: string) => (inLibrary(videoId) ? loadBeats(videoId) : null))
+  // o click é gerado no player; vira stems/click.wav na hora de exportar
+  ipcMain.handle('click:save', (_e, videoId: string, wav: Uint8Array) => {
+    if (!inLibrary(videoId)) throw new Error('Song not found')
+    writeFileSync(join(stemsDir(videoId), 'click.wav'), Buffer.from(wav))
+  })
   ipcMain.handle('beats:analyze', async (_e, videoId: string) => {
     if (!inLibrary(videoId)) throw new Error('Song not found')
     return analyzeBeats(videoId)
@@ -302,8 +307,8 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('stems:export-all', async (_e, videoId: string) => {
     const song = loadSongs().find((s) => s.videoId === videoId)
-    const list = stemsFor(song)
     const dir = stemsDir(videoId)
+    const list = [...stemsFor(song), ...(existsSync(join(dir, 'click.wav')) ? ['click'] : [])]
     for (const name of list) {
       if (!existsSync(join(dir, `${name}.wav`))) throw new Error(`Missing stem ${name}`)
     }

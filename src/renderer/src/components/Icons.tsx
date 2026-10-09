@@ -60,6 +60,15 @@ export function WaveIcon({ className = base }: IconProps) {
   )
 }
 
+export function MetronomeIcon({ className = base }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M9.5 3h5l4 18h-13l4-18Z" />
+      <path d="M7.5 16h9M12 13l5-7" />
+    </svg>
+  )
+}
+
 export function PlayIcon({ className = base }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>

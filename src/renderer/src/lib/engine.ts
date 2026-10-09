@@ -20,6 +20,40 @@ export async function decodePayload(
   return out
 }
 
+// o click continua tocando quando outro stem está em solo; só o M dele o desliga
+export function isAudible(id: StemId, mutes: Set<StemId>, solos: Set<StemId>): boolean {
+  if (mutes.has(id)) return false
+  if (id === 'click') return true
+  return solos.size === 0 || solos.has(id)
+}
+
+/* click como stem: renderiza a grade de batidas num áudio do tamanho da música.
+   Agudo no "1" do compasso, grave nos outros tempos */
+export function renderClick(
+  beats: number[],
+  downbeats: number[],
+  duration: number,
+  sampleRate = 44100
+): AudioBuffer {
+  const out = new AudioBuffer({ length: Math.max(1, Math.ceil(duration * sampleRate)), sampleRate, numberOfChannels: 1 })
+  const data = out.getChannelData(0)
+  const tone = (freq: number, amp: number, seconds: number): Float32Array => {
+    const n = Math.round(sampleRate * seconds)
+    const t = new Float32Array(n)
+    for (let i = 0; i < n; i++) t[i] = amp * Math.sin((2 * Math.PI * freq * i) / sampleRate) * Math.exp((-9 * i) / n)
+    return t
+  }
+  const strong = tone(1600, 0.9, 0.05)
+  const weak = tone(1000, 0.6, 0.04)
+  const downs = new Set(downbeats.map((t) => Math.round(t * 1000)))
+  for (const beat of beats) {
+    const sound = downs.has(Math.round(beat * 1000)) ? strong : weak
+    const at = Math.round(beat * sampleRate)
+    for (let i = 0; i < sound.length && at + i < data.length; i++) data[at + i] += sound[i]
+  }
+  return out
+}
+
 export class StemEngine {
   private ctx: AudioContext | null = null
   private buffers: BufferMap = {}
@@ -32,17 +66,6 @@ export class StemEngine {
   private loopA: number | null = null
   private loopB: number | null = null
   private loopOn = false
-  // click inteligente: grade de batidas (segundos da música) tocada por um
-  // agendador com antecedência, no relógio do Web Audio (precisão de amostra)
-  private clickBeats: number[] = []
-  private clickDowns = new Set<number>()
-  private clickOn = false
-  private clickVolume = 0.8
-  private clickGain: GainNode | null = null
-  private clickSounds: { strong: AudioBuffer; weak: AudioBuffer } | null = null
-  private clickSources: AudioBufferSourceNode[] = []
-  private clickTimer: ReturnType<typeof setInterval> | null = null
-  private clickScheduledRaw = 0
   rate = 1
 
   private ensureCtx(): AudioContext {
@@ -77,7 +100,8 @@ export class StemEngine {
 
   setBuffers(buffers: BufferMap): void {
     this.stopAll()
-    this.buffers = buffers
+    // cópia: setStemBuffer não pode alterar o objeto que o player guarda em cache
+    this.buffers = { ...buffers }
   }
 
   hasBuffers(): boolean {
@@ -105,7 +129,6 @@ export class StemEngine {
 
   align(time: number): void {
     this.stopSources()
-    this.stopClicks()
     // fora da regiao (depois do B) volta para o A; antes do A toca ate o B e entra no loop
     if (this.looping() && time >= this.loopB!) time = this.loopA!
     this.anchorYt = time
@@ -129,7 +152,6 @@ export class StemEngine {
       this.sources.push(src)
     }
     this.anchorCtx = startAt
-    this.restartClicks()
   }
 
   expected(): number {
@@ -158,7 +180,7 @@ export class StemEngine {
     if (!this.ctx) return
     const now = this.ctx.currentTime
     for (const id of Object.keys(vols) as StemId[]) {
-      const audible = !mutes.has(id) && (solos.size === 0 || solos.has(id))
+      const audible = isAudible(id, mutes, solos)
       this.getGain(id).gain.setTargetAtTime(audible ? vols[id] ?? 1 : 0, now, 0.012)
     }
     this.master?.gain.setTargetAtTime(masterVol, now, 0.012)
@@ -167,116 +189,14 @@ export class StemEngine {
   stopAll(): void {
     this.playing = false
     this.stopSources()
-    this.stopClicks()
   }
 
-  setClickGrid(beats: number[], downbeats: number[]): void {
-    this.clickBeats = beats
-    this.clickDowns = new Set(downbeats.map((t) => Math.round(t * 1000)))
-    this.restartClicks()
-  }
-
-  setClickEnabled(on: boolean): void {
-    this.clickOn = on
-    this.restartClicks()
-  }
-
-  setClickVolume(v: number): void {
-    this.clickVolume = v
-    if (this.clickGain && this.ctx) {
-      this.clickGain.gain.setTargetAtTime(v, this.ctx.currentTime, 0.012)
-    }
-  }
-
-  // som do click gerado uma vez: agudo no "1" do compasso, grave nos outros tempos
-  private ensureClickSounds(ctx: AudioContext): { strong: AudioBuffer; weak: AudioBuffer } {
-    if (!this.clickSounds) {
-      const make = (freq: number, amp: number, seconds: number): AudioBuffer => {
-        const buf = ctx.createBuffer(1, Math.round(ctx.sampleRate * seconds), ctx.sampleRate)
-        const d = buf.getChannelData(0)
-        for (let i = 0; i < d.length; i++) {
-          const t = i / ctx.sampleRate
-          d[i] = amp * Math.sin(2 * Math.PI * freq * t) * Math.exp((-9 * i) / d.length)
-        }
-        return buf
-      }
-      this.clickSounds = { strong: make(1600, 0.9, 0.05), weak: make(1000, 0.6, 0.04) }
-    }
-    return this.clickSounds
-  }
-
-  private restartClicks(): void {
-    this.stopClicks()
-    if (!this.ctx || !this.playing || !this.clickOn || this.clickBeats.length === 0) return
-    if (!this.clickGain) {
-      this.clickGain = this.ctx.createGain()
-      this.clickGain.gain.value = this.clickVolume
-      // fora do master: o volume da música não abafa o click
-      this.clickGain.connect(this.ctx.destination)
-    }
-    this.clickScheduledRaw = this.anchorYt
-    this.scheduleClicks()
-    this.clickTimer = setInterval(() => this.scheduleClicks(), 25)
-  }
-
-  private stopClicks(): void {
-    if (this.clickTimer) clearInterval(this.clickTimer)
-    this.clickTimer = null
-    for (const s of this.clickSources) {
-      try {
-        s.stop()
-      } catch {}
-      try {
-        s.disconnect()
-      } catch {}
-    }
-    this.clickSources = []
-  }
-
-  /* agenda os clicks dos próximos ~200ms. Trabalha no tempo "corrido" da música
-     (raw, sem dar a volta no loop) e converte cada batida para o relógio do
-     contexto; com o loop ligado, as batidas de [A,B) se repetem a cada volta */
-  private scheduleClicks(): void {
-    const ctx = this.ctx
-    if (!ctx || !this.clickGain) return
-    const toRaw = (t: number): number => this.anchorYt + (t - this.anchorCtx) * this.rate
-    const lo = this.clickScheduledRaw
-    const hi = toRaw(ctx.currentTime + 0.2)
-    if (hi <= lo) return
-    const play = (beat: number, raw: number): void => {
-      const when = this.anchorCtx + (raw - this.anchorYt) / this.rate
-      if (when < ctx.currentTime) return
-      const sounds = this.ensureClickSounds(ctx)
-      const src = ctx.createBufferSource()
-      src.buffer = this.clickDowns.has(Math.round(beat * 1000)) ? sounds.strong : sounds.weak
-      src.connect(this.clickGain!)
-      src.start(when)
-      src.onended = () => {
-        this.clickSources = this.clickSources.filter((s) => s !== src)
-      }
-      this.clickSources.push(src)
-    }
-    const looping = this.looping()
-    const a = this.loopA ?? 0
-    const b = this.loopB ?? 0
-    for (const t of this.clickBeats) {
-      if (looping && t >= b) break
-      if (t >= lo && t < hi) play(t, t)
-    }
-    if (looping) {
-      const len = b - a
-      const first = Math.max(1, Math.floor((lo - a) / len))
-      const last = Math.ceil((hi - a) / len)
-      for (let m = first; m <= last; m++) {
-        for (const t of this.clickBeats) {
-          if (t < a) continue
-          if (t >= b) break
-          const raw = t + m * len
-          if (raw >= b && raw >= lo && raw < hi) play(t, raw)
-        }
-      }
-    }
-    this.clickScheduledRaw = hi
+  // troca/adiciona um stem com a música tocando (ex.: o click gerado das batidas)
+  setStemBuffer(id: StemId, buffer: AudioBuffer | null): void {
+    const t = this.expected()
+    if (buffer) this.buffers[id] = buffer
+    else delete this.buffers[id]
+    if (this.playing) this.align(t)
   }
 
   private stopSources(): void {
