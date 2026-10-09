@@ -9,14 +9,14 @@ export interface StemMeta {
 }
 
 const ALL_META: Record<StemId, StemMeta> = {
-  vocals: { id: 'vocals', label: 'vocals', color: '#A78BFA', icon: <MicIcon /> },
-  drums: { id: 'drums', label: 'drums', color: '#F87171', icon: <DrumIcon /> },
-  bass: { id: 'bass', label: 'bass', color: '#60A5FA', icon: <BassIcon /> },
-  guitar: { id: 'guitar', label: 'guitar', color: '#F472B6', icon: <GuitarIcon /> },
-  piano: { id: 'piano', label: 'piano', color: '#FBBF24', icon: <PianoIcon /> },
-  other: { id: 'other', label: 'other', color: '#34D399', icon: <WaveIcon /> },
-  click: { id: 'click', label: 'click', color: '#7DD3FC', icon: <MetronomeIcon /> },
-  guide: { id: 'guide', label: 'guide', color: '#FDBA74', icon: <GuideIcon /> }
+  vocals: { id: 'vocals', label: 'Vocais', color: '#A78BFA', icon: <MicIcon /> },
+  drums: { id: 'drums', label: 'Bateria', color: '#F87171', icon: <DrumIcon /> },
+  bass: { id: 'bass', label: 'Baixo', color: '#60A5FA', icon: <BassIcon /> },
+  guitar: { id: 'guitar', label: 'Guitarra', color: '#F472B6', icon: <GuitarIcon /> },
+  piano: { id: 'piano', label: 'Piano', color: '#FBBF24', icon: <PianoIcon /> },
+  other: { id: 'other', label: 'Outro', color: '#34D399', icon: <WaveIcon /> },
+  click: { id: 'click', label: 'Metrônomo Inteligente', color: '#7DD3FC', icon: <MetronomeIcon /> },
+  guide: { id: 'guide', label: 'Guia', color: '#FDBA74', icon: <GuideIcon /> }
 }
 
 // gerados por último: click abaixo de other, guia abaixo do click

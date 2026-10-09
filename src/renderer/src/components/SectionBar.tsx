@@ -33,9 +33,8 @@ export function SectionBar({ sections, duration, onSeek, onRename, onLoop }: Pro
   const pct = (t: number): number => (duration > 0 ? Math.min(100, Math.max(0, (t / duration) * 100)) : 0)
 
   return (
-    <div className="flex items-center gap-3 w-full">
-      <span className="w-12" />
-      <div className="relative flex-1 h-6">
+    <div className="w-full pb-1">
+      <div className="relative h-6">
         {sections.map((s, i) => {
           const { name, color } = info(s.label)
           return (
@@ -61,7 +60,6 @@ export function SectionBar({ sections, duration, onSeek, onRename, onLoop }: Pro
           )
         })}
       </div>
-      <span className="w-12" />
       {menu &&
         createPortal(
           <div className="fixed inset-0 z-50" onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null) }}>

@@ -5,12 +5,14 @@ import { engine, decodePayload, isAudible, renderClick, type BufferMap } from '.
 import { encodeWav } from '../lib/wav'
 import { decodeGuideClips, renderGuide, type GuideClips } from '../lib/guide'
 import { buildStemMeta, STEM_INFO } from '../lib/stems'
-import { fmtTime } from '../lib/format'
-import { SongThumb } from '../lib/thumbs'
-import { YouTubeHost, type YTState } from '../lib/youtube'
-import { StemLane } from './StemLane'
-import { Transport, type ClickFactor, type PresetId } from './Transport'
-import { DownloadIcon } from './Icons'
+import { StudioHeader, type MenuItem } from './studio/StudioHeader'
+import { Ruler } from './studio/Ruler'
+import { Playhead } from './studio/Playhead'
+import { TrackRow } from './studio/TrackRow'
+import { TransportBar } from './studio/TransportBar'
+import { SectionBar } from './SectionBar'
+
+export type ClickFactor = 0.5 | 1 | 2
 
 type BufferCacheMap = BufferMap
 
@@ -70,22 +72,14 @@ function applyFactor(grid: BeatGrid, factor: ClickFactor): { beats: number[]; do
 interface Props {
   song: Song
   settings?: AppSettings
+  onBack: () => void
 }
 
-export function Player({ song, settings }: Props): React.ReactElement {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const hostRef = useRef<YouTubeHost | null>(null)
+export function Player({ song, onBack }: Props): React.ReactElement {
   const posRef = useRef(0)
   const playingRef = useRef(false)
-  const videoSyncAtRef = useRef(0)
-  const prevPosRef = useRef(0)
-  const loopActiveRef = useRef(false)
   const songIdRef = useRef(song.videoId)
 
-  const VIDEO_DRIFT_LIMIT = 0.4
-  const VIDEO_RESYNC_COOLDOWN = 2000
-
-  const [ytReady, setYtReady] = useState(false)
   const [decoding, setDecoding] = useState(true)
   const [decodeError, setDecodeError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
@@ -97,7 +91,8 @@ export function Player({ song, settings }: Props): React.ReactElement {
   const [mutes, setMutes] = useState<Set<StemId>>(new Set())
   const [solos, setSolos] = useState<Set<StemId>>(new Set())
   const [master, setMaster] = useState(0.9)
-  const [preset, setPreset] = useState<PresetId | 'custom'>('all')
+  const [pans, setPans] = useState<Partial<Record<StemId, number>>>({})
+  const [showSections, setShowSections] = useState(true)
   const [loopA, setLoopA] = useState<number | null>(null)
   const [loopB, setLoopB] = useState<number | null>(null)
   const [loopOn, setLoopOn] = useState(false)
@@ -121,31 +116,21 @@ export function Player({ song, settings }: Props): React.ReactElement {
   const youtubeUrl = isLocal ? null : `https://www.youtube.com/watch?v=${song.videoId}`
   // stems always play locally from the library; hiding the video just stops
   // streaming it from YouTube (and switches thumbnails to the local cache)
-  const showVideo = !(settings?.hideVideo ?? false) && !isLocal
-  const addedLabel = new Date(song.addedAt).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  })
 
   useEffect(() => {
     posRef.current = 0
     setPlaying(false)
     playingRef.current = false
-    videoSyncAtRef.current = 0
-    setYtReady(false)
     setDecodeError(null)
     setBuffers({})
     setDuration(song.duration || 0)
     setVols({})
     setMutes(new Set())
     setSolos(new Set())
-    setPreset('all')
+    setPans({})
     setLoopA(null)
     setLoopB(null)
     setLoopOn(false)
-    loopActiveRef.current = false
-    prevPosRef.current = 0
     engine.stopAll()
     engine.setLoop(null, null, false)
     songIdRef.current = song.videoId
@@ -194,50 +179,17 @@ export function Player({ song, settings }: Props): React.ReactElement {
     return () => {
       cancelled = true
       engine.stopAll()
-      hostRef.current?.destroy()
-      hostRef.current = null
     }
   }, [song.videoId])
 
-  useEffect(() => {
-    if (!showVideo) {
-      hostRef.current?.destroy()
-      hostRef.current = null
-      setYtReady(false)
-      return
-    }
-    if (decoding || decodeError || hostRef.current) return
-    let disposed = false
-    const container = containerRef.current
-    if (!container) return
-
-    const host = new YouTubeHost()
-    hostRef.current = host
-    void host
-      .mount(container, song.videoId, (state: YTState) => {
-        if (disposed || !engine.hasBuffers()) return
-        if (state === 'playing') {
-          videoSyncAtRef.current = 0
-          if (!playingRef.current) {
-            host.pause()
-          }
-        }
-      })
-      .then(() => {
-        if (!disposed) setYtReady(true)
-      })
-
-    return () => {
-      disposed = true
-    }
-    return () => {
-      disposed = true
-    }
-  }, [song.videoId, decoding, decodeError, showVideo])
 
   useEffect(() => {
     engine.applyMix(vols, mutes, solos, master)
   }, [vols, mutes, solos, master])
+
+  useEffect(() => {
+    for (const [id, value] of Object.entries(pans)) engine.setPan(id as StemId, value ?? 0)
+  }, [pans])
 
   useEffect(
     () =>
@@ -325,33 +277,16 @@ export function Player({ song, settings }: Props): React.ReactElement {
     const tick = (): void => {
       posRef.current = engine.expected()
 
-      // o loop deu a volta (B -> A): o video nao repete sozinho, entao pula junto
-      const wrapped = loopActiveRef.current && posRef.current < prevPosRef.current - 0.3
-      prevPosRef.current = posRef.current
-      if (wrapped) {
-        videoSyncAtRef.current = performance.now()
-        hostRef.current?.seek(posRef.current)
-      }
-
       const dur = engine.trackDuration()
       if (dur > 0 && posRef.current >= dur - 0.03) {
         posRef.current = dur
         engine.stopAll()
         playingRef.current = false
         setPlaying(false)
-        hostRef.current?.pause()
         setBump((n) => n + 1)
         return
       }
 
-      const now = performance.now()
-      if (now - videoSyncAtRef.current > VIDEO_RESYNC_COOLDOWN) {
-        const v = hostRef.current?.time() ?? 0
-        if (Math.abs(v - posRef.current) > VIDEO_DRIFT_LIMIT) {
-          videoSyncAtRef.current = now
-          hostRef.current?.seek(posRef.current)
-        }
-      }
     }
     const loop = (): void => {
       tick()
@@ -365,39 +300,26 @@ export function Player({ song, settings }: Props): React.ReactElement {
     }
   }, [playing])
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      const d = hostRef.current?.duration() ?? 0
-      if (d > 0) {
-        setDuration((prev) => (Math.abs(prev - d) > 0.5 ? d : prev))
-      }
-    }, 600)
-    return () => clearInterval(id)
-  }, [])
 
   const togglePlay = useCallback((): void => {
     if (decoding || decodeError) return
     if (playingRef.current) {
       playingRef.current = false
       engine.setPlaying(false, posRef.current)
-      hostRef.current?.pause()
       setPlaying(false)
     } else {
       playingRef.current = true
       engine.resume()
       engine.setPlaying(true, posRef.current)
-      hostRef.current?.play()
       setPlaying(true)
     }
-  }, [decoding, decodeError, showVideo])
+  }, [decoding, decodeError])
 
   const seekTo = useCallback(
     (t: number): void => {
       const clamped = Math.max(0, Math.min(duration > 0 ? duration - 0.05 : t, t))
       posRef.current = clamped
       engine.setPlaying(playingRef.current, clamped)
-      videoSyncAtRef.current = performance.now()
-      hostRef.current?.seek(clamped)
       setBump((n) => n + 1)
     },
     [duration]
@@ -407,7 +329,6 @@ export function Player({ song, settings }: Props): React.ReactElement {
     setLoopA(a)
     setLoopB(b)
     setLoopOn(on)
-    loopActiveRef.current = on && a !== null && b !== null
     engine.setLoop(a, b, on)
   }, [])
 
@@ -434,7 +355,6 @@ export function Player({ song, settings }: Props): React.ReactElement {
 
   const toggleClick = useCallback((): void => {
     if (!beats) return
-    setPreset('custom')
     setMutes((prev) => {
       const next = new Set(prev)
       if (next.has('click')) next.delete('click')
@@ -575,18 +495,7 @@ export function Player({ song, settings }: Props): React.ReactElement {
     return () => window.removeEventListener('keydown', onKey)
   }, [togglePlay, markA, markB, toggleLoop, toggleClick])
 
-  const applyPreset = (p: PresetId): void => {
-    setPreset(p)
-    setMutes(new Set())
-    if (p === 'all') setSolos(new Set())
-    else if (p === 'karaoke')
-      setSolos(new Set<StemId>(stemMeta.filter((s) => s.id !== 'vocals').map((s) => s.id)))
-    else if (p === 'acapella') setSolos(new Set<StemId>(['vocals']))
-    else if (p === 'drumnbass') setSolos(new Set<StemId>(['drums', 'bass']))
-  }
-
   const toggleMute = (id: StemId): void => {
-    setPreset('custom')
     const turningOn = !mutes.has(id)
     if (turningOn && solos.has(id)) {
       setSolos((prev) => {
@@ -604,7 +513,6 @@ export function Player({ song, settings }: Props): React.ReactElement {
   }
 
   const toggleSolo = (id: StemId): void => {
-    setPreset('custom')
     const turningOn = !solos.has(id)
     if (turningOn && mutes.has(id)) {
       setMutes((prev) => {
@@ -621,166 +529,182 @@ export function Player({ song, settings }: Props): React.ReactElement {
     })
   }
 
+  // voltar/avançar: começo da seção anterior/próxima (sem seções: 5 segundos)
+  const jump = (dir: -1 | 1): void => {
+    const pos = posRef.current
+    const starts = (sections?.sections ?? []).map((x) => x.start)
+    if (starts.length) {
+      const target =
+        dir > 0
+          ? starts.find((t) => t > pos + 0.5)
+          : [...starts].reverse().find((t) => t < pos - 1.5)
+      seekTo(target ?? (dir > 0 ? duration : 0))
+    } else seekTo(Math.max(0, pos + dir * 5))
+  }
+
+  const clickGrid = beats ? applyFactor(beats, clickFactor) : null
+  const exportItems: MenuItem[] = [
+    { label: 'Exportar todas as faixas', onClick: exportAllStems, disabled: decoding || !!addProgress },
+    ...stemMeta.map((meta) => ({
+      label: `Exportar ${meta.label}`,
+      onClick: () => exportStem(meta.id),
+      disabled: decoding || !!addProgress
+    }))
+  ]
+  const menuItems: MenuItem[] = [
+    ...(youtubeUrl ? [{ label: 'Abrir no YouTube', onClick: () => window.stemkit.openExternal(youtubeUrl) }] : []),
+    {
+      label: beats ? 'Detectar batidas de novo' : 'Detectar batidas (metrônomo)',
+      onClick: analyzeBeats,
+      disabled: analyzing
+    },
+    {
+      label: sections ? 'Detectar seções de novo' : 'Detectar seções',
+      onClick: analyzeSections,
+      disabled: sectionsBusy
+    },
+    ...(loopA !== null || loopB !== null ? [{ label: 'Limpar loop', onClick: clearLoop }] : [])
+  ]
+  const notices = [
+    analyzing && 'Detectando batidas…',
+    sectionsBusy && 'Detectando seções…',
+    clickError && `Metrônomo: ${clickError}`,
+    sectionsError && `Seções: ${sectionsError}`,
+    guideError && `Guia: ${guideError}`,
+    decodeError
+  ].filter(Boolean) as string[]
+
   return (
-    <div className="h-full flex flex-col">
-      <header className="drag-region h-14 shrink-0 flex items-center justify-between px-6">
-        <h2 className="text-sm font-semibold truncate">{song.title}</h2>
-      </header>
+    <div className="h-full flex flex-col bg-[#0a0a0a] text-white">
+      <StudioHeader
+        title={song.title}
+        videoId={song.videoId}
+        onBack={onBack}
+        canAddStems={missingStems.length > 0 && !decoding && !addProgress}
+        onAddStems={() => setAddOpen(true)}
+        bpm={beats ? beats.bpm * clickFactor : null}
+        beatsPerBar={beats?.beatsPerBar ?? null}
+        exportItems={exportItems}
+        menuItems={menuItems}
+      />
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-stretch gap-4 h-[220px]">
-            {showVideo && (
-              <div className="relative w-[391px] shrink-0">
-                <div className="absolute -inset-4 bg-violet-500/10 blur-3xl rounded-full pointer-events-none" />
-                <div className="absolute inset-0 rounded-xl overflow-hidden ring-1 ring-white/10 bg-black shadow-2xl shadow-black/60">
-                  <div ref={containerRef} className="absolute inset-0 [&_iframe]:w-full [&_iframe]:h-full" />
-                  {!ytReady && (
-                    <div className="absolute inset-0 flex items-center justify-center animate-pulse">
-                      <span className="text-[10px] text-white/40 tracking-widest uppercase">loading…</span>
-                    </div>
-                  )}
-                  {decodeError && (
-                    <div className="absolute inset-x-3 bottom-3 flex justify-center rise-in">
-                      <div className="glass rounded-lg px-3 py-1.5 text-xs text-rose-300 break-words">
-                        {decodeError}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <aside className="flex-1 min-w-0 glass rounded-2xl px-6 py-5 rise-in flex flex-col justify-between">
-              <div className="flex items-center gap-4">
-                <SongThumb
-                  videoId={song.videoId}
-                  className="w-32 h-[72px] rounded-lg object-cover bg-white/5 shrink-0 block"
-                  iconClassName="w-7 h-7 text-white/25"
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="relative pr-3">
+          {showSections && sections && sections.sections.length > 0 && (
+            <div className="flex">
+              <div className="w-[214px] shrink-0" />
+              <div className="flex-1 min-w-0">
+                <SectionBar
+                  sections={sections.sections}
+                  duration={duration}
+                  onSeek={seekTo}
+                  onRename={renameSection}
+                  onLoop={loopSection}
                 />
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-xl font-semibold leading-snug truncate">{song.title}</h3>
-                  <p className="text-xs text-white/45 mt-1.5 font-mono truncate">
-                    {fmtTime(song.duration)} · added {addedLabel}
-                    {song.took ? ` · split in ${fmtTime(song.took)}` : ''}
-                  </p>
-                </div>
-                <span className="shrink-0 text-xs px-3 py-1.5 rounded-full bg-white/5 text-white/50 font-medium">
-                  {stemMeta.length} stems
-                </span>
               </div>
-
-              {!showVideo && decodeError && (
-                <div className="rounded-xl bg-rose-500/10 border border-rose-400/20 px-3 py-2 text-xs text-rose-200 break-words">
-                  {decodeError}
-                </div>
-              )}
-
-              <div className="flex items-center gap-x-6 gap-y-2 flex-wrap">
-                {stemMeta.map((meta) => (
-                  <span key={meta.id} className="flex items-center gap-2 text-[14px] text-white/75">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: meta.color }} />
-                    <span className="capitalize">{meta.label}</span>
-                  </span>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-3">
-                {missingStems.length > 0 && (
-                  <button
-                    onClick={() => setAddOpen((o) => !o)}
-                    disabled={decoding || !!decodeError || !!addProgress}
-                    className="no-drag glass rounded-xl px-5 py-3 text-[13px] font-medium text-white/70 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40"
-                  >
-                    + Add stems
-                  </button>
-                )}
-                <button
-                  onClick={exportAllStems}
-                  disabled={decoding || !!decodeError || !!addProgress}
-                  className="no-drag glass rounded-xl px-5 py-3 text-[13px] font-medium text-white/70 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-2 disabled:opacity-40"
-                >
-                  <DownloadIcon className="w-4 h-4" />
-                  Export everything
-                </button>
-                {youtubeUrl && (
-                  <button
-                    onClick={() => window.stemkit.openExternal(youtubeUrl)}
-                    className="no-drag glass rounded-xl px-5 py-3 text-[13px] font-medium text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-                  >
-                    Open on YouTube
-                  </button>
-                )}
-              </div>
-
-            </aside>
+            </div>
+          )}
+          <div className="flex mb-3">
+            <div className="w-[214px] shrink-0" />
+            <div className="flex-1 min-w-0">
+              <Ruler
+                duration={duration}
+                beats={clickGrid?.beats ?? []}
+                downbeats={clickGrid?.downbeats ?? []}
+                loopA={loopA}
+                loopB={loopB}
+                loopOn={loopOn}
+                onSeek={seekTo}
+                onSelectLoop={(a, b) => applyLoop(a, b, true)}
+              />
+            </div>
           </div>
 
-          <Transport
-            playing={playing}
-            duration={duration}
-            getPosition={getPosition}
-            onTogglePlay={togglePlay}
-            onSeek={seekTo}
-            preset={preset === 'custom' ? 'all' : preset}
-            onPreset={applyPreset}
-            master={master}
-            onMaster={setMaster}
-            youtubeUrl={youtubeUrl ?? undefined}
-            loopA={loopA}
-            loopB={loopB}
-            loopOn={loopOn}
-            onMarkA={markA}
-            onMarkB={markB}
-            onToggleLoop={toggleLoop}
-            onClearLoop={clearLoop}
-            click={{
-              available: !!beats,
-              bpm: beats?.bpm ?? null,
-              factor: clickFactor,
-              analyzing,
-              error: clickError
-            }}
-            onClickFactor={setClickFactor}
-            onAnalyzeBeats={analyzeBeats}
-            sections={sections?.sections ?? null}
-            sectionsBusy={sectionsBusy}
-            sectionsError={sectionsError ?? (guideError ? `Guia: ${guideError}` : null)}
-            onAnalyzeSections={analyzeSections}
-            onRenameSection={renameSection}
-            onLoopSection={loopSection}
-          />
-
-          <div className="mt-4 space-y-2">
+          <div className="flex flex-col gap-1.5 pb-4">
             {decoding
-              ? [...Array(4)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="glass rounded-xl h-16 animate-pulse"
-                    style={{ animationDelay: `${i * 120}ms` }}
-                  />
+              ? [...Array(5)].map((_, i) => (
+                  <div key={i} className="flex h-16">
+                    <div className="w-[214px] shrink-0" />
+                    <div className="flex-1 rounded-md bg-white/[0.06] animate-pulse" style={{ animationDelay: `${i * 120}ms` }} />
+                  </div>
                 ))
               : stemMeta.map((meta) => (
-              <StemLane
-                key={meta.id}
-                meta={meta}
-                buffer={buffers[meta.id] ?? null}
-                duration={duration}
-                getPosition={getPosition}
-                audible={isAudible(meta.id, mutes, solos)}
-                volume={vols[meta.id] ?? 1}
-                muted={mutes.has(meta.id)}
-                soloed={solos.has(meta.id)}
-                onToggleMute={() => toggleMute(meta.id)}
-                onToggleSolo={() => toggleSolo(meta.id)}
-                onVolume={(v) => setVols((prev) => ({ ...prev, [meta.id]: v }))}
-                onSeek={seekTo}
-                onExport={() => exportStem(meta.id)}
-              />
-            ))}
+                  <TrackRow
+                    key={meta.id}
+                    id={meta.id}
+                    label={meta.label}
+                    buffer={buffers[meta.id] ?? null}
+                    duration={duration}
+                    audible={isAudible(meta.id, mutes, solos)}
+                    muted={mutes.has(meta.id)}
+                    soloed={solos.has(meta.id)}
+                    volume={vols[meta.id] ?? 1}
+                    pan={pans[meta.id] ?? 0}
+                    onToggleMute={() => toggleMute(meta.id)}
+                    onToggleSolo={() => toggleSolo(meta.id)}
+                    onVolume={(v) => setVols((prev) => ({ ...prev, [meta.id]: v }))}
+                    onPan={(v) => setPans((prev) => ({ ...prev, [meta.id]: v }))}
+                    onSeek={seekTo}
+                  >
+                    {meta.id === 'click' && (
+                      <div className="absolute top-1.5 left-2 flex gap-1" onClick={(e) => e.stopPropagation()}>
+                        {([0.5, 1, 2] as ClickFactor[]).map((f) => (
+                          <button
+                            key={f}
+                            onClick={() => setClickFactor(f)}
+                            title={f === 1 ? 'Pulso detectado' : f === 2 ? 'Dobro do pulso' : 'Metade do pulso'}
+                            className={`no-drag px-1.5 h-4 rounded-[3px] text-[9px] font-bold ${
+                              clickFactor === f ? 'bg-white text-black' : 'bg-black/45 text-white hover:bg-black/60'
+                            }`}
+                          >
+                            {f === 0.5 ? '0.5x' : f === 2 ? '2x' : '1x'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </TrackRow>
+                ))}
+          </div>
+
+          <div className="absolute top-0 bottom-0 left-[214px] right-3 pointer-events-none">
+            <Playhead duration={duration} getPosition={getPosition} />
           </div>
         </div>
       </div>
+
+      <TransportBar
+        playing={playing}
+        duration={duration}
+        getPosition={getPosition}
+        onTogglePlay={togglePlay}
+        onSeek={seekTo}
+        onPrev={() => jump(-1)}
+        onNext={() => jump(1)}
+        loopOn={loopOn}
+        onToggleLoop={() => {
+          if (loopA !== null && loopB !== null) toggleLoop()
+          else {
+            // sem trecho marcado: faz loop da seção atual
+            const pos = posRef.current
+            const current = sections?.sections.find((x) => pos >= x.start && pos < x.end)
+            if (current) applyLoop(current.start, current.end, true)
+          }
+        }}
+        master={master}
+        onMaster={setMaster}
+        showSections={showSections}
+        onToggleSections={() => setShowSections((v) => !v)}
+      />
+
+      {notices.length > 0 && (
+        <div className="fixed bottom-24 left-5 z-40 flex flex-col gap-1.5 max-w-[360px]">
+          {notices.map((n) => (
+            <div key={n} className="bg-[#1c1c1c] border border-white/10 rounded-lg px-3 py-2 text-[12px] text-white/80 shadow-xl">
+              {n}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* adicionar stem: janela própria (no quadro da música ela ficava cortada) */}
       {createPortal(

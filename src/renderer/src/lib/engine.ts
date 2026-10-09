@@ -58,6 +58,8 @@ export class StemEngine {
   private ctx: AudioContext | null = null
   private buffers: BufferMap = {}
   private gains: Partial<Record<StemId, GainNode>> = {}
+  // pan L/R por faixa: volume -> pan -> master
+  private pans: Partial<Record<StemId, StereoPannerNode>> = {}
   private master: GainNode | null = null
   private sources: AudioBufferSourceNode[] = []
   private playing = false
@@ -83,10 +85,20 @@ export class StemEngine {
     let g = this.gains[id]
     if (!g) {
       g = ctx.createGain()
-      g.connect(this.master!)
+      const pan = ctx.createStereoPanner()
+      g.connect(pan)
+      pan.connect(this.master!)
       this.gains[id] = g
+      this.pans[id] = pan
     }
     return g
+  }
+
+  // -1 (esquerda) a 1 (direita)
+  setPan(id: StemId, value: number): void {
+    this.getGain(id)
+    const pan = this.pans[id]
+    if (pan && this.ctx) pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, value)), this.ctx.currentTime, 0.012)
   }
 
   resume(): void {

@@ -94,3 +94,15 @@ input[type="range"]:hover::-webkit-slider-thumb {
   border: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(18px);
 }
+
+/* sliders de volume da tela estúdio: trilho fino, bolinha escura com aro branco */
+input[type="range"].studio-volume {
+  height: 2px;
+}
+input[type="range"].studio-volume::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  background: #111;
+  border: 2px solid #fff;
+  box-shadow: none;
+}

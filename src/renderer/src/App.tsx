@@ -263,6 +263,7 @@ export default function App(): React.ReactElement {
         key={`${activeSong.videoId}|${activeSong.model}|${(activeSong.stems ?? []).join(',')}`}
         song={activeSong}
         settings={settings ?? undefined}
+        onBack={() => setActiveId(null)}
       />
     )
   } else {
@@ -283,9 +284,11 @@ export default function App(): React.ReactElement {
     )
   }
 
+  // no player a tela é toda das faixas (estilo estúdio); a biblioteca volta pela seta
+  const studio = !selectedIsBusy && !!activeSong
   return (
     <div className="h-full flex">
-      <Sidebar
+      {!studio && <Sidebar
         songs={displaySongs}
         activeId={activeId}
         pending={pendingMap}
@@ -299,7 +302,7 @@ export default function App(): React.ReactElement {
           void window.stemkit.envStatus().then(setStatus)
           setSettingsOpen(true)
         }}
-      />
+      />}
       <main className="flex-1 min-w-0">{main}</main>
       {settings && settingsOpen && (
         <Settings
