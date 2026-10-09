@@ -20,7 +20,7 @@ export function Setup({ status, logs, onInstall }: Props): React.ReactElement {
       <div className="w-full max-w-lg rise-in">
         <div className="flex items-center gap-3 justify-center">
           <LogoMark className="w-10 h-10" />
-          <h1 className="text-xl font-bold tracking-tight">Welcome to Stem-machine</h1>
+          <h1 className="text-xl font-bold tracking-tight">Welcome to Stem-Machine</h1>
         </div>
         <p className="text-center text-white/45 text-sm mt-3 leading-relaxed">
           One-time setup — after this everything works offline, right on your machine.

@@ -1024,7 +1024,7 @@ export function ensureGpuEngine(
           // not a driver/permission problem, so the generic advice would
           // mislead; point at the engine instead
           const advice = /invalid device function|no kernel image/i.test(raw)
-            ? 'This GPU architecture has no kernels in the installed ROCm engine — update Stem-machine.'
+            ? 'This GPU architecture has no kernels in the installed ROCm engine — update Stem-Machine.'
             : 'Check the amdgpu driver and that your user can access /dev/kfd and /dev/dri.'
           throw new Error(
             `AMD GPU probe failed${override ? ` (using ${override})` : ''}: ${raw.slice(-300)}. ${advice}`

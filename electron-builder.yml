@@ -1,5 +1,5 @@
 appId: com.jcamihao.stemmachine
-productName: Stem-machine
+productName: Stem-Machine
 afterPack: scripts/after-pack.cjs
 directories:
   output: release

@@ -167,7 +167,7 @@ async function convertToWav(job: ActiveJob, inputPath: string): Promise<void> {
   const ffmpeg = getStatus().ffmpeg.path
   if (!ffmpeg) {
     throw Object.assign(
-      new Error('Something went wrong with the built-in audio tools. Try reinstalling Stem-machine.'),
+      new Error('Something went wrong with the built-in audio tools. Try reinstalling Stem-Machine.'),
       { videoId }
     )
   }
@@ -605,7 +605,7 @@ async function runSeparation(
 function friendlySpawnError(err: NodeJS.ErrnoException): Error {
   if (err.errno === -86 || /Unknown system error -86/.test(err.message ?? '')) {
     return new Error(
-      "Stem-machine's built-in audio tools don't work on this Mac — update Stem-machine to the latest version"
+      "Stem-Machine's built-in audio tools don't work on this Mac — update Stem-Machine to the latest version"
     )
   }
   return err
