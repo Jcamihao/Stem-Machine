@@ -24,7 +24,8 @@ interface Props {
   onOpenSettings: () => void
 }
 
-const ALL_STEMS = PREFERRED_ORDER
+// o click não se escolhe: é gerado automaticamente a partir das batidas
+const ALL_STEMS = PREFERRED_ORDER.filter((id) => id !== 'click')
 
 export function Home({
   hasSongs,
@@ -48,20 +49,8 @@ export function Home({
   const usesExtended = [...selected].some((id) => id === 'guitar' || id === 'piano')
   const derivedModel = usesExtended ? MODEL_EXTENDED : MODEL_DEFAULT
   const orderedSelection = ALL_STEMS.filter((id) => selected.has(id))
-  // the fine-tuned engine only covers the standard 4-stem split; guitar and
-  // piano always run through the 6-source engine, so they're unavailable
-  // while it's on
-  const ftOn = !!settings?.htdemucsFt
-  useEffect(() => {
-    if (!ftOn) return
-    setSelected((prev) => {
-      if (!prev.has('guitar') && !prev.has('piano')) return prev
-      const next = new Set(prev)
-      next.delete('guitar')
-      next.delete('piano')
-      return next
-    })
-  }, [ftOn])
+  // guitarra e piano sempre disponíveis: quando escolhidos, a música usa o
+  // motor de 6 fontes (o "Cleaner instruments" só cobre a separação em 4)
   const engineLabel = usesExtended
     ? '6-source engine'
     : settings?.roformerVocals
@@ -213,7 +202,6 @@ export function Home({
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
             {ALL_STEMS.map((id) => {
-              if (ftOn && (id === 'guitar' || id === 'piano')) return null
               const info = STEM_INFO[id]
               const on = selected.has(id)
               return (
