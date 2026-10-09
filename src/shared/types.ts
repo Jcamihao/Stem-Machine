@@ -76,6 +76,15 @@ export interface EnvEvent {
   level: 'info' | 'error' | 'success'
 }
 
+// click inteligente: batidas e "1" de cada compasso, em segundos (python/beats.py)
+export interface BeatGrid {
+  version: number
+  bpm: number
+  beatsPerBar: number
+  beats: number[]
+  downbeats: number[]
+}
+
 export type JobStage = 'metadata' | 'download' | 'convert' | 'separate' | 'finalize'
 
 export interface JobProgress {
@@ -122,6 +131,8 @@ export interface StemKitApi {
   listSongs(): Promise<Song[]>
   deleteSong(videoId: string): Promise<void>
   getBuffers(videoId: string): Promise<Record<string, Uint8Array>>
+  getBeats(videoId: string): Promise<BeatGrid | null>
+  analyzeBeats(videoId: string): Promise<BeatGrid>
   exportStem(videoId: string, stem: string): Promise<{ saved: boolean; path?: string }>
   exportAllStems(videoId: string): Promise<{ saved: boolean; path?: string; count?: number }>
   searchYouTube(query: string): Promise<SearchResult[]>

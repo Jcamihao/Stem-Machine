@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync, rmSync, mkdirSync, openSync, r
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { userDataDir } from './env'
-import { DEFAULT_STEMS, type Song } from '../shared/types'
+import { DEFAULT_STEMS, type BeatGrid, type Song } from '../shared/types'
 
 // drives both the file-dialog filter and the pre-flight extension check in
 // startLocalJob; anything here is fair game for ffmpeg to decode
@@ -39,6 +39,20 @@ export function stemsDir(videoId: string): string {
 
 export function mixWavPath(videoId: string): string {
   return join(songDir(videoId), 'mix.wav')
+}
+
+// grade do click inteligente (python/beats.py)
+export function beatsPath(videoId: string): string {
+  return join(songDir(videoId), 'beats.json')
+}
+
+export function loadBeats(videoId: string): BeatGrid | null {
+  try {
+    const data = JSON.parse(readFileSync(beatsPath(videoId), 'utf8'))
+    return Array.isArray(data.beats) && Array.isArray(data.downbeats) ? data : null
+  } catch {
+    return null
+  }
 }
 
 export function rawDownloadPath(videoId: string): string {

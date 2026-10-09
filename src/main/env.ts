@@ -121,6 +121,69 @@ export function modelsDir(): string {
   return join(userDataDir(), 'models')
 }
 
+export function beatsScript(): string {
+  if (app.isPackaged) {
+    return join(process.resourcesPath, 'python', 'beats.py')
+  }
+  return join(app.getAppPath(), 'python', 'beats.py')
+}
+
+/* click inteligente: detector de batidas beat_this (JKU Linz, licença MIT).
+   O venv já tem torch/torchaudio/einops; faltam só ele e o soxr. --no-deps
+   para nunca trocar o torch que o app escolheu (CPU, CUDA ou ROCm). O modelo
+   (~77MB) fica na pasta de modelos, então depois do 1º download o click
+   funciona offline */
+const BEAT_CKPT_URL = 'https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt'
+
+export function beatModelPath(): string {
+  return join(modelsDir(), 'beat_this-final0.ckpt')
+}
+
+let beatEngineReady = false
+let beatEnginePromise: Promise<boolean> | null = null
+
+export function ensureBeatEngine(): Promise<boolean> {
+  if (beatEngineReady && existsSync(beatModelPath())) return Promise.resolve(true)
+  if (!beatEnginePromise) {
+    beatEnginePromise = (async () => {
+      try {
+        await runCapture(venvPython(), ['-c', 'import beat_this, soxr'], 20000)
+      } catch {
+        sendEnvEvent('Installing the beat engine…')
+        await new Promise<void>((resolve, reject) => {
+          const child = spawn(
+            venvPython(),
+            ['-m', 'pip', 'install', '-q', '--no-deps', 'beat-this==1.1.0', 'soxr'],
+            { env: { ...process.env } }
+          )
+          child.on('close', (code) =>
+            code === 0 ? resolve() : reject(new Error(`pip install failed (${code})`))
+          )
+          child.on('error', reject)
+        })
+      }
+      if (!existsSync(beatModelPath())) {
+        mkdirSync(modelsDir(), { recursive: true })
+        sendEnvEvent('Downloading the beat engine (~77MB, one time)')
+        await downloadTo(BEAT_CKPT_URL, beatModelPath(), 'beat engine')
+      }
+      beatEngineReady = true
+      return true
+    })()
+      .catch((err) => {
+        sendEnvEvent(
+          `Beat engine failed: ${err instanceof Error ? err.message : String(err)}`,
+          'error'
+        )
+        return false
+      })
+      .finally(() => {
+        beatEnginePromise = null
+      })
+  }
+  return beatEnginePromise
+}
+
 const ENGINE_DEPS = ['beartype', 'rotary_embedding_torch', 'einops']
 let engineDepsReady = false
 

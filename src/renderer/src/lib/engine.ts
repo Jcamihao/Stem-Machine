@@ -32,6 +32,17 @@ export class StemEngine {
   private loopA: number | null = null
   private loopB: number | null = null
   private loopOn = false
+  // click inteligente: grade de batidas (segundos da música) tocada por um
+  // agendador com antecedência, no relógio do Web Audio (precisão de amostra)
+  private clickBeats: number[] = []
+  private clickDowns = new Set<number>()
+  private clickOn = false
+  private clickVolume = 0.8
+  private clickGain: GainNode | null = null
+  private clickSounds: { strong: AudioBuffer; weak: AudioBuffer } | null = null
+  private clickSources: AudioBufferSourceNode[] = []
+  private clickTimer: ReturnType<typeof setInterval> | null = null
+  private clickScheduledRaw = 0
   rate = 1
 
   private ensureCtx(): AudioContext {
@@ -94,6 +105,7 @@ export class StemEngine {
 
   align(time: number): void {
     this.stopSources()
+    this.stopClicks()
     // fora da regiao (depois do B) volta para o A; antes do A toca ate o B e entra no loop
     if (this.looping() && time >= this.loopB!) time = this.loopA!
     this.anchorYt = time
@@ -117,6 +129,7 @@ export class StemEngine {
       this.sources.push(src)
     }
     this.anchorCtx = startAt
+    this.restartClicks()
   }
 
   expected(): number {
@@ -154,6 +167,116 @@ export class StemEngine {
   stopAll(): void {
     this.playing = false
     this.stopSources()
+    this.stopClicks()
+  }
+
+  setClickGrid(beats: number[], downbeats: number[]): void {
+    this.clickBeats = beats
+    this.clickDowns = new Set(downbeats.map((t) => Math.round(t * 1000)))
+    this.restartClicks()
+  }
+
+  setClickEnabled(on: boolean): void {
+    this.clickOn = on
+    this.restartClicks()
+  }
+
+  setClickVolume(v: number): void {
+    this.clickVolume = v
+    if (this.clickGain && this.ctx) {
+      this.clickGain.gain.setTargetAtTime(v, this.ctx.currentTime, 0.012)
+    }
+  }
+
+  // som do click gerado uma vez: agudo no "1" do compasso, grave nos outros tempos
+  private ensureClickSounds(ctx: AudioContext): { strong: AudioBuffer; weak: AudioBuffer } {
+    if (!this.clickSounds) {
+      const make = (freq: number, amp: number, seconds: number): AudioBuffer => {
+        const buf = ctx.createBuffer(1, Math.round(ctx.sampleRate * seconds), ctx.sampleRate)
+        const d = buf.getChannelData(0)
+        for (let i = 0; i < d.length; i++) {
+          const t = i / ctx.sampleRate
+          d[i] = amp * Math.sin(2 * Math.PI * freq * t) * Math.exp((-9 * i) / d.length)
+        }
+        return buf
+      }
+      this.clickSounds = { strong: make(1600, 0.9, 0.05), weak: make(1000, 0.6, 0.04) }
+    }
+    return this.clickSounds
+  }
+
+  private restartClicks(): void {
+    this.stopClicks()
+    if (!this.ctx || !this.playing || !this.clickOn || this.clickBeats.length === 0) return
+    if (!this.clickGain) {
+      this.clickGain = this.ctx.createGain()
+      this.clickGain.gain.value = this.clickVolume
+      // fora do master: o volume da música não abafa o click
+      this.clickGain.connect(this.ctx.destination)
+    }
+    this.clickScheduledRaw = this.anchorYt
+    this.scheduleClicks()
+    this.clickTimer = setInterval(() => this.scheduleClicks(), 25)
+  }
+
+  private stopClicks(): void {
+    if (this.clickTimer) clearInterval(this.clickTimer)
+    this.clickTimer = null
+    for (const s of this.clickSources) {
+      try {
+        s.stop()
+      } catch {}
+      try {
+        s.disconnect()
+      } catch {}
+    }
+    this.clickSources = []
+  }
+
+  /* agenda os clicks dos próximos ~200ms. Trabalha no tempo "corrido" da música
+     (raw, sem dar a volta no loop) e converte cada batida para o relógio do
+     contexto; com o loop ligado, as batidas de [A,B) se repetem a cada volta */
+  private scheduleClicks(): void {
+    const ctx = this.ctx
+    if (!ctx || !this.clickGain) return
+    const toRaw = (t: number): number => this.anchorYt + (t - this.anchorCtx) * this.rate
+    const lo = this.clickScheduledRaw
+    const hi = toRaw(ctx.currentTime + 0.2)
+    if (hi <= lo) return
+    const play = (beat: number, raw: number): void => {
+      const when = this.anchorCtx + (raw - this.anchorYt) / this.rate
+      if (when < ctx.currentTime) return
+      const sounds = this.ensureClickSounds(ctx)
+      const src = ctx.createBufferSource()
+      src.buffer = this.clickDowns.has(Math.round(beat * 1000)) ? sounds.strong : sounds.weak
+      src.connect(this.clickGain!)
+      src.start(when)
+      src.onended = () => {
+        this.clickSources = this.clickSources.filter((s) => s !== src)
+      }
+      this.clickSources.push(src)
+    }
+    const looping = this.looping()
+    const a = this.loopA ?? 0
+    const b = this.loopB ?? 0
+    for (const t of this.clickBeats) {
+      if (looping && t >= b) break
+      if (t >= lo && t < hi) play(t, t)
+    }
+    if (looping) {
+      const len = b - a
+      const first = Math.max(1, Math.floor((lo - a) / len))
+      const last = Math.ceil((hi - a) / len)
+      for (let m = first; m <= last; m++) {
+        for (const t of this.clickBeats) {
+          if (t < a) continue
+          if (t >= b) break
+          const raw = t + m * len
+          if (raw >= b && raw >= lo && raw < hi) play(t, raw)
+        }
+      }
+    }
+    this.clickScheduledRaw = hi
   }
 
   private stopSources(): void {

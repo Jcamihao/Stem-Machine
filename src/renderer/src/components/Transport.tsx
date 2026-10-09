@@ -4,6 +4,19 @@ import { PlayIcon, PauseIcon, ExternalIcon } from './Icons'
 
 export type PresetId = 'all' | 'karaoke' | 'acapella' | 'drumnbass'
 
+// ½× / 2×: corrige quando a detecção conta o pulso no dobro ou na metade
+export type ClickFactor = 0.5 | 1 | 2
+
+export interface ClickState {
+  available: boolean
+  on: boolean
+  volume: number
+  bpm: number | null
+  factor: ClickFactor
+  analyzing: boolean
+  error: string | null
+}
+
 const PRESETS: { id: PresetId; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'karaoke', label: 'Karaoke' },
@@ -30,6 +43,11 @@ interface Props {
   onMarkB: () => void
   onToggleLoop: () => void
   onClearLoop: () => void
+  click: ClickState
+  onToggleClick: () => void
+  onClickVolume: (v: number) => void
+  onClickFactor: (f: ClickFactor) => void
+  onAnalyzeBeats: () => void
 }
 
 function SeekBar({
@@ -138,7 +156,12 @@ export function Transport({
   onMarkA,
   onMarkB,
   onToggleLoop,
-  onClearLoop
+  onClearLoop,
+  click,
+  onToggleClick,
+  onClickVolume,
+  onClickFactor,
+  onAnalyzeBeats
 }: Props): React.ReactElement {
   const hasLoop = loopA !== null && loopB !== null
   const loopBtn =
@@ -246,6 +269,55 @@ export function Transport({
             <ExternalIcon />
           </button>
         )}
+      </div>
+
+      <div className="flex items-center gap-3 border-t border-white/[0.06] pt-3">
+        {click.available ? (
+          <>
+            <button
+              onClick={onToggleClick}
+              title="Ligar/desligar o click (C)"
+              className={`${loopBtn} ${click.on ? '!bg-sky-300 !text-black' : ''}`}
+            >
+              Click{click.bpm ? ` · ${Math.round(click.bpm * click.factor)} BPM` : ''}
+            </button>
+            <div className="flex items-center gap-1">
+              {([0.5, 1, 2] as ClickFactor[]).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => onClickFactor(f)}
+                  title={f === 1 ? 'Pulso detectado' : f === 2 ? 'Dobro do pulso' : 'Metade do pulso'}
+                  className={`${loopBtn} !h-7 !px-2 ${click.factor === f ? 'text-sky-300' : ''}`}
+                >
+                  {f === 0.5 ? '½×' : f === 2 ? '2×' : '1×'}
+                </button>
+              ))}
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={click.volume}
+              onChange={(e) => onClickVolume(parseFloat(e.target.value))}
+              title="Volume do click"
+              className="no-drag w-28"
+              style={{
+                background: `linear-gradient(to right, #7dd3fc ${click.volume * 100}%, rgba(255,255,255,0.14) ${click.volume * 100}%)`
+              }}
+            />
+          </>
+        ) : (
+          <button
+            onClick={onAnalyzeBeats}
+            disabled={click.analyzing}
+            title="Detecta as batidas desta música para ligar o click"
+            className={`${loopBtn} disabled:opacity-60`}
+          >
+            {click.analyzing ? 'Detectando batidas…' : 'Detectar batidas (click)'}
+          </button>
+        )}
+        {click.error && <span className="text-[11px] text-rose-300 truncate">{click.error}</span>}
       </div>
     </div>
   )

@@ -30,8 +30,8 @@ import {
   getStatus
 } from './env'
 import { loadSettings, saveSettings } from './settings'
-import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUDIO_EXTENSIONS } from './library'
-import { startJob, startLocalJob, cancelJob, searchYouTube } from './pipeline'
+import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUDIO_EXTENSIONS, loadBeats } from './library'
+import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats } from './pipeline'
 import { initUpdater } from './updater'
 import { runSmoke } from './smoke'
 import { getThumb, clearThumbMemo } from './thumbs'
@@ -247,6 +247,14 @@ app.whenReady().then(async () => {
   ipcMain.handle('song:buffers', (_e, videoId: string) => {
     const song = loadSongs().find((s) => s.videoId === videoId)
     return stemBuffers(videoId, song?.stems)
+  })
+
+  // só músicas da biblioteca: o id vira caminho de pasta
+  const inLibrary = (videoId: string): boolean => loadSongs().some((s) => s.videoId === videoId)
+  ipcMain.handle('song:beats', (_e, videoId: string) => (inLibrary(videoId) ? loadBeats(videoId) : null))
+  ipcMain.handle('beats:analyze', async (_e, videoId: string) => {
+    if (!inLibrary(videoId)) throw new Error('Song not found')
+    return analyzeBeats(videoId)
   })
 
   ipcMain.handle('jobs:start', async (_e, url: string, model?: string, stems?: string[]) => {

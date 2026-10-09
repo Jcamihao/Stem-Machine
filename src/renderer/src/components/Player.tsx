@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AppSettings, Song, StemId } from '../../../shared/types'
+import type { AppSettings, BeatGrid, Song, StemId } from '../../../shared/types'
 import { engine, decodePayload, type BufferMap } from '../lib/engine'
 import { buildStemMeta } from '../lib/stems'
 import { fmtTime } from '../lib/format'
 import { SongThumb } from '../lib/thumbs'
 import { YouTubeHost, type YTState } from '../lib/youtube'
 import { StemLane } from './StemLane'
-import { Transport, type PresetId } from './Transport'
+import { Transport, type ClickFactor, type PresetId } from './Transport'
 import { DownloadIcon } from './Icons'
 
 type BufferCacheMap = BufferMap
@@ -28,6 +28,24 @@ function getDecoded(videoId: string): Promise<BufferCacheMap> {
   return entry
 }
 
+/* ½×: fica uma batida sim, outra não, mantendo todo "1" do compasso;
+   2×: acrescenta uma batida no meio de cada intervalo */
+function applyFactor(grid: BeatGrid, factor: ClickFactor): { beats: number[]; downbeats: number[] } {
+  if (factor === 1) return { beats: grid.beats, downbeats: grid.downbeats }
+  if (factor === 2) {
+    const beats: number[] = []
+    grid.beats.forEach((t, i) => {
+      beats.push(t)
+      const next = grid.beats[i + 1]
+      if (next !== undefined) beats.push((t + next) / 2)
+    })
+    return { beats, downbeats: grid.downbeats }
+  }
+  const first = grid.downbeats.length ? grid.beats.indexOf(grid.downbeats[0]) : 0
+  const parity = Math.max(0, first) % 2
+  return { beats: grid.beats.filter((_, i) => i % 2 === parity), downbeats: grid.downbeats }
+}
+
 interface Props {
   song: Song
   settings?: AppSettings
@@ -41,6 +59,7 @@ export function Player({ song, settings }: Props): React.ReactElement {
   const videoSyncAtRef = useRef(0)
   const prevPosRef = useRef(0)
   const loopActiveRef = useRef(false)
+  const songIdRef = useRef(song.videoId)
 
   const VIDEO_DRIFT_LIMIT = 0.4
   const VIDEO_RESYNC_COOLDOWN = 2000
@@ -61,6 +80,12 @@ export function Player({ song, settings }: Props): React.ReactElement {
   const [loopA, setLoopA] = useState<number | null>(null)
   const [loopB, setLoopB] = useState<number | null>(null)
   const [loopOn, setLoopOn] = useState(false)
+  const [beats, setBeats] = useState<BeatGrid | null>(null)
+  const [clickOn, setClickOn] = useState(false)
+  const [clickVolume, setClickVolume] = useState(0.8)
+  const [clickFactor, setClickFactor] = useState<ClickFactor>(1)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [clickError, setClickError] = useState<string | null>(null)
 
   const stemMeta = useMemo(() => buildStemMeta(Object.keys(buffers) as StemId[]), [buffers])
 
@@ -97,8 +122,19 @@ export function Player({ song, settings }: Props): React.ReactElement {
     prevPosRef.current = 0
     engine.stopAll()
     engine.setLoop(null, null, false)
+    songIdRef.current = song.videoId
+    setBeats(null)
+    setClickOn(false)
+    setClickFactor(1)
+    setClickError(null)
+    setAnalyzing(false)
+    engine.setClickEnabled(false)
+    engine.setClickGrid([], [])
 
     let cancelled = false
+    void window.stemkit.getBeats(song.videoId).then((grid) => {
+      if (!cancelled) setBeats(grid)
+    })
     setDecoding(true)
     getDecoded(song.videoId)
       .then((decoded) => {
@@ -163,6 +199,19 @@ export function Player({ song, settings }: Props): React.ReactElement {
   useEffect(() => {
     engine.applyMix(vols, mutes, solos, master)
   }, [vols, mutes, solos, master])
+
+  useEffect(() => {
+    const grid = beats ? applyFactor(beats, clickFactor) : { beats: [], downbeats: [] }
+    engine.setClickGrid(grid.beats, grid.downbeats)
+  }, [beats, clickFactor])
+
+  useEffect(() => {
+    engine.setClickEnabled(clickOn)
+  }, [clickOn])
+
+  useEffect(() => {
+    engine.setClickVolume(clickVolume)
+  }, [clickVolume])
 
   useEffect(() => {
     if (!playing) return
@@ -277,6 +326,30 @@ export function Player({ song, settings }: Props): React.ReactElement {
 
   const clearLoop = useCallback((): void => applyLoop(null, null, false), [applyLoop])
 
+  const toggleClick = useCallback((): void => {
+    if (beats) setClickOn((on) => !on)
+  }, [beats])
+
+  const analyzeBeats = useCallback((): void => {
+    setAnalyzing(true)
+    setClickError(null)
+    const videoId = song.videoId
+    window.stemkit
+      .analyzeBeats(videoId)
+      .then((grid) => {
+        // trocou de música enquanto analisava: o resultado já ficou salvo no disco
+        if (videoId !== songIdRef.current) return
+        setBeats(grid)
+        setClickOn(true)
+      })
+      .catch((err) => {
+        if (videoId === songIdRef.current) setClickError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (videoId === songIdRef.current) setAnalyzing(false)
+      })
+  }, [song.videoId])
+
   const getPosition = useCallback((): number => {
     void bump
     return posRef.current
@@ -305,10 +378,11 @@ export function Player({ song, settings }: Props): React.ReactElement {
       if (e.code === 'KeyA') markA()
       else if (e.code === 'KeyB') markB()
       else if (e.code === 'KeyL') toggleLoop()
+      else if (e.code === 'KeyC') toggleClick()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [togglePlay, markA, markB, toggleLoop])
+  }, [togglePlay, markA, markB, toggleLoop, toggleClick])
 
   const applyPreset = (p: PresetId): void => {
     setPreset(p)
@@ -459,6 +533,19 @@ export function Player({ song, settings }: Props): React.ReactElement {
             onMarkB={markB}
             onToggleLoop={toggleLoop}
             onClearLoop={clearLoop}
+            click={{
+              available: !!beats,
+              on: clickOn,
+              volume: clickVolume,
+              bpm: beats?.bpm ?? null,
+              factor: clickFactor,
+              analyzing,
+              error: clickError
+            }}
+            onToggleClick={toggleClick}
+            onClickVolume={setClickVolume}
+            onClickFactor={setClickFactor}
+            onAnalyzeBeats={analyzeBeats}
           />
 
           <div className="mt-4 space-y-2">

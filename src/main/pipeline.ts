@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { createInterface } from 'readline'
-import { readdirSync, mkdirSync, rmSync, statSync } from 'fs'
+import { existsSync, readdirSync, mkdirSync, rmSync, statSync } from 'fs'
 import { basename, extname, join } from 'path'
 import { BrowserWindow } from 'electron'
 import {
@@ -15,7 +15,10 @@ import {
   ensureGpuEngine,
   detectGpuVendor,
   getStatus,
-  ytDlpRuntimeArgs
+  ytDlpRuntimeArgs,
+  beatsScript,
+  beatModelPath,
+  ensureBeatEngine
 } from './env'
 import { loadSettings } from './settings'
 import {
@@ -28,9 +31,11 @@ import {
   upsertSong,
   loadSongs,
   AUDIO_EXTENSIONS,
-  wavDuration
+  wavDuration,
+  beatsPath,
+  loadBeats
 } from './library'
-import type { JobEvent, JobStage } from '../shared/types'
+import type { BeatGrid, JobEvent, JobStage } from '../shared/types'
 import { MODEL_DEFAULT, MODEL_EXTENDED } from '../shared/types'
 import { parseVideoId } from '../shared/url'
 import { localSongId } from '../shared/local'
@@ -189,6 +194,68 @@ async function convertToWav(job: ActiveJob, inputPath: string): Promise<void> {
   progress(job, 'convert', 100)
 }
 
+function beatsArgs(videoId: string): string[] {
+  return [
+    beatsScript(),
+    '--input',
+    mixWavPath(videoId),
+    '--out',
+    beatsPath(videoId),
+    '--checkpoint',
+    beatModelPath()
+  ]
+}
+
+/* click inteligente: detecta as batidas logo depois da separação (~10s, CPU).
+   Não é fatal: se falhar, a música entra na biblioteca sem click e o player
+   oferece "analisar batidas" depois */
+async function detectBeats(job: ActiveJob): Promise<void> {
+  if (!(await ensureBeatEngine())) return
+  if (job.cancelled || !jobs.has(job.videoId)) throw new Error('cancelled')
+  progress(job, 'finalize', 0, 'Detecting beats')
+  try {
+    await runProcess(job, venvPython(), beatsArgs(job.videoId))
+  } catch (err) {
+    if (err instanceof Error && err.message === 'cancelled') throw err
+  }
+}
+
+const beatAnalyses = new Map<string, Promise<BeatGrid>>()
+
+// músicas separadas antes do click (ou cuja detecção falhou): roda só a detecção
+export function analyzeBeats(videoId: string): Promise<BeatGrid> {
+  let pending = beatAnalyses.get(videoId)
+  if (!pending) {
+    pending = (async () => {
+      if (!existsSync(mixWavPath(videoId))) throw new Error('Original audio not found for this song')
+      if (!(await ensureBeatEngine())) throw new Error('Beat engine unavailable')
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn(venvPython(), beatsArgs(videoId), { env: { ...process.env } })
+        let scriptError = ''
+        if (child.stdout) {
+          createInterface({ input: child.stdout }).on('line', (line) => {
+            try {
+              const ev = JSON.parse(line)
+              if (ev.type === 'error') scriptError = String(ev.message)
+            } catch {}
+          })
+        }
+        child.on('error', reject)
+        child.on('close', (code) =>
+          code === 0
+            ? resolve()
+            : reject(new Error(scriptError || `beat detection exited with code ${code}`))
+        )
+      })
+      const grid = loadBeats(videoId)
+      if (!grid) throw new Error('Beat detection produced no result')
+      return grid
+    })().finally(() => beatAnalyses.delete(videoId))
+    beatAnalyses.set(videoId, pending)
+  }
+  return pending
+}
+
 function finalizeJob(
   job: ActiveJob,
   info: { title: string; duration: number; addedAt: number; startedAt: number; source?: 'local' },
@@ -303,6 +370,7 @@ export async function startJob(
 
     const producedStems = await runSeparation(job, plan, stems)
     if (job.cancelled || !jobs.has(videoId)) return
+    await detectBeats(job)
     finalizeJob(job, { title: meta!.title, duration: meta!.duration, addedAt, startedAt }, producedStems)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -368,6 +436,7 @@ export async function startLocalJob(
 
     const producedStems = await runSeparation(job, plan, stems)
     if (job.cancelled || !jobs.has(videoId)) return
+    await detectBeats(job)
     finalizeJob(job, { title, duration, addedAt, startedAt, source: 'local' }, producedStems)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
