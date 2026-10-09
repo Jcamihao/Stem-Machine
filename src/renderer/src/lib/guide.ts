@@ -87,8 +87,8 @@ export function sectionEntry(start: number, grid: BeatGrid): number | null {
   return grid.downbeats.find((t) => t >= start - 0.5 * beat) ?? null
 }
 
-/* guia de voz: para cada seção nova, fala o nome no "1" de 2 compassos antes da
-   entrada e conta "um, dois, três, quatro" nos tempos do último compasso.
+/* guia de voz: para cada seção nova, fala o nome 2 compassos antes da entrada e
+   conta "um, dois, três, quatro" nos 4 tempos colados na entrada.
    Usa as batidas do click (grade aprovada) para cair exatamente no tempo */
 export function renderGuide(
   sections: Section[],
@@ -108,20 +108,24 @@ export function renderGuide(
       if (start + i >= 0) data[start + i] += fitted[i] * gain
     }
   }
-  const downs = grid.downbeats
+  // conta para trás a partir da entrada, em tempos: a chamada fica 2 compassos
+  // antes e a contagem são os tempos colados na entrada (mesmo que algum compasso
+  // da grade seja irregular, como em gravação ao vivo)
+  const perBar = grid.beatsPerBar || 4
   let previous = ''
   for (const section of sections) {
     if (section.label === previous) continue
     previous = section.label
     const entry = sectionEntry(section.start, grid)
     if (entry === null) continue
-    const before = downs.filter((t) => t < entry - 0.05)
-    if (before.length < 2) continue // começo da música: não há tempo para avisar
-    // nome: no "1" de 2 compassos antes, cabendo naquele compasso
-    place(clips[section.label], before[before.length - 2], 1, before[before.length - 1] - before[before.length - 2] - 0.05)
-    // contagem: os tempos do último compasso, cada palavra cabendo no seu tempo
-    const lastBar = grid.beats.filter((t) => t >= before[before.length - 1] - 0.02 && t < entry - 0.05)
-    lastBar.slice(0, 4).forEach((t, i) => place(clips[`c${i + 1}`], t, 0.85, beat * 0.9))
+    const i = grid.beats.findIndex((t) => Math.abs(t - entry) < 0.05)
+    if (i < 2 * perBar) continue // começo da música: não há tempo para avisar
+    const call = grid.beats[i - 2 * perBar]
+    place(clips[section.label], call, 1, grid.beats[i - perBar] - call - 0.05)
+    for (let k = 0; k < perBar && k < 4; k++) {
+      const t = grid.beats[i - perBar + k]
+      place(clips[`c${k + 1}`], t, 0.85, beat * 0.9)
+    }
   }
   return out
 }
