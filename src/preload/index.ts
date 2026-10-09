@@ -19,6 +19,7 @@ const api: StemKitApi = {
   getBeats: (videoId) => ipcRenderer.invoke('song:beats', videoId),
   analyzeBeats: (videoId) => ipcRenderer.invoke('beats:analyze', videoId),
   saveClick: (videoId, wav) => ipcRenderer.invoke('click:save', videoId, wav),
+  addStems: (videoId, stems) => ipcRenderer.invoke('stems:add', videoId, stems),
   exportStem: (videoId, stem) => ipcRenderer.invoke('stem:export', videoId, stem),
   exportAllStems: (videoId) => ipcRenderer.invoke('stems:export-all', videoId),
   searchYouTube: (query) => ipcRenderer.invoke('search:youtube', query),

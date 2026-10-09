@@ -31,7 +31,7 @@ import {
 } from './env'
 import { loadSettings, saveSettings } from './settings'
 import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUDIO_EXTENSIONS, loadBeats } from './library'
-import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats } from './pipeline'
+import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addStems } from './pipeline'
 import { initUpdater } from './updater'
 import { runSmoke } from './smoke'
 import { getThumb, clearThumbMemo } from './thumbs'
@@ -256,6 +256,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('click:save', (_e, videoId: string, wav: Uint8Array) => {
     if (!inLibrary(videoId)) throw new Error('Song not found')
     writeFileSync(join(stemsDir(videoId), 'click.wav'), Buffer.from(wav))
+  })
+  ipcMain.handle('stems:add', (_e, videoId: string, stems: string[]) => {
+    void addStems(videoId, stems)
   })
   ipcMain.handle('beats:analyze', async (_e, videoId: string) => {
     if (!inLibrary(videoId)) throw new Error('Song not found')

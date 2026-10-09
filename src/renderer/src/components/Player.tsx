@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppSettings, BeatGrid, Song, StemId } from '../../../shared/types'
 import { engine, decodePayload, isAudible, renderClick, type BufferMap } from '../lib/engine'
 import { encodeWav } from '../lib/wav'
-import { buildStemMeta } from '../lib/stems'
+import { buildStemMeta, STEM_INFO } from '../lib/stems'
 import { fmtTime } from '../lib/format'
 import { SongThumb } from '../lib/thumbs'
 import { YouTubeHost, type YTState } from '../lib/youtube'
@@ -14,20 +14,24 @@ type BufferCacheMap = BufferMap
 
 const bufferCache = new Map<string, Promise<BufferCacheMap>>()
 
-function getDecoded(videoId: string): Promise<BufferCacheMap> {
-  let entry = bufferCache.get(videoId)
+// cache por música + motor + stems: depois de "adicionar stem" o áudio é outro
+function getDecoded(song: Song): Promise<BufferCacheMap> {
+  const key = `${song.videoId}|${song.model}|${(song.stems ?? []).join(',')}`
+  let entry = bufferCache.get(key)
   if (!entry) {
     entry = window.stemkit
-      .getBuffers(videoId)
+      .getBuffers(song.videoId)
       .then((payload) => decodePayload(payload))
       .catch((err) => {
-        bufferCache.delete(videoId)
+        bufferCache.delete(key)
         throw err
       })
-    bufferCache.set(videoId, entry)
+    bufferCache.set(key, entry)
   }
   return entry
 }
+
+const SEPARABLE: StemId[] = ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other']
 
 /* ½×: fica uma batida sim, outra não, mantendo todo "1" do compasso;
    2×: acrescenta uma batida no meio de cada intervalo */
@@ -85,6 +89,10 @@ export function Player({ song, settings }: Props): React.ReactElement {
   const [clickFactor, setClickFactor] = useState<ClickFactor>(1)
   const [analyzing, setAnalyzing] = useState(false)
   const [clickError, setClickError] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addPick, setAddPick] = useState<Set<StemId>>(new Set())
+  const [addProgress, setAddProgress] = useState<{ pct: number; message?: string } | null>(null)
+  const [addError, setAddError] = useState<string | null>(null)
 
   const stemMeta = useMemo(() => buildStemMeta(Object.keys(buffers) as StemId[]), [buffers])
 
@@ -132,7 +140,7 @@ export function Player({ song, settings }: Props): React.ReactElement {
       if (!cancelled) setBeats(grid)
     })
     setDecoding(true)
-    getDecoded(song.videoId)
+    getDecoded(song)
       .then((decoded) => {
         if (cancelled) return
         setBuffers(decoded)
@@ -195,6 +203,20 @@ export function Player({ song, settings }: Props): React.ReactElement {
   useEffect(() => {
     engine.applyMix(vols, mutes, solos, master)
   }, [vols, mutes, solos, master])
+
+  useEffect(
+    () =>
+      window.stemkit.onJobEvent((ev) => {
+        if (ev.data.videoId !== song.videoId || ev.kind === 'done') return
+        if (ev.kind === 'progress') {
+          if (ev.data.resplit) setAddProgress({ pct: ev.data.pct, message: ev.data.message })
+        } else {
+          setAddProgress(null)
+          if (ev.data.resplit) setAddError(ev.data.message)
+        }
+      }),
+    [song.videoId]
+  )
 
   // click como stem: gerado das batidas (com ½×/2×) depois que os stems carregam
   useEffect(() => {
@@ -371,6 +393,29 @@ export function Player({ song, settings }: Props): React.ReactElement {
     return posRef.current
   }, [bump])
 
+  const missingStems = SEPARABLE.filter((id) => !(song.stems ?? []).includes(id))
+  // guitarra/piano só saem do motor de 6 fontes: numa música separada em 4, refaz tudo
+  const addNeedsSix =
+    [...addPick].some((id) => id === 'guitar' || id === 'piano') &&
+    !(song.model ?? '').startsWith('htdemucs_6s')
+
+  const toggleAddPick = (id: StemId): void =>
+    setAddPick((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const confirmAddStems = (): void => {
+    if (addPick.size === 0) return
+    setAddError(null)
+    setAddProgress({ pct: 0, message: 'Starting…' })
+    setAddOpen(false)
+    void window.stemkit.addStems(song.videoId, [...addPick])
+    setAddPick(new Set())
+  }
+
   // o click só existe em memória: grava stems/click.wav antes de exportar
   const saveClick = useCallback(async (): Promise<void> => {
     if (buffers.click) await window.stemkit.saveClick(song.videoId, encodeWav(buffers.click))
@@ -522,9 +567,18 @@ export function Player({ song, settings }: Props): React.ReactElement {
               </div>
 
               <div className="flex items-center gap-3">
+                {missingStems.length > 0 && (
+                  <button
+                    onClick={() => setAddOpen((o) => !o)}
+                    disabled={decoding || !!decodeError || !!addProgress}
+                    className="no-drag glass rounded-xl px-5 py-3 text-[13px] font-medium text-white/70 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40"
+                  >
+                    + Add stems
+                  </button>
+                )}
                 <button
                   onClick={exportAllStems}
-                  disabled={decoding || !!decodeError}
+                  disabled={decoding || !!decodeError || !!addProgress}
                   className="no-drag glass rounded-xl px-5 py-3 text-[13px] font-medium text-white/70 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-2 disabled:opacity-40"
                 >
                   <DownloadIcon className="w-4 h-4" />
@@ -539,6 +593,78 @@ export function Player({ song, settings }: Props): React.ReactElement {
                   </button>
                 )}
               </div>
+
+              {addOpen && (
+                <div className="glass rounded-xl p-3 flex flex-col gap-2.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {missingStems.map((id) => {
+                      const info = STEM_INFO[id]
+                      const on = addPick.has(id)
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => toggleAddPick(id)}
+                          className="no-drag px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors capitalize"
+                          style={{
+                            color: on ? info.color : 'rgba(255,255,255,0.55)',
+                            borderColor: on ? info.color : 'rgba(255,255,255,0.12)',
+                            background: on ? `${info.color}22` : 'transparent'
+                          }}
+                        >
+                          {info.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[11px] text-white/45 leading-relaxed">
+                    {addNeedsSix
+                      ? 'Guitar and piano need the 6-source engine: the whole song will be split again from the saved audio (no re-upload).'
+                      : 'Instant if this stem was already computed; otherwise the song is split again from the saved audio (no re-upload).'}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={confirmAddStems}
+                      disabled={addPick.size === 0}
+                      className="no-drag px-3 py-1.5 rounded-lg bg-violet-500/90 hover:bg-violet-500 text-white text-[12px] font-semibold disabled:opacity-40"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAddOpen(false)
+                        setAddPick(new Set())
+                      }}
+                      className="no-drag px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/10 text-white/70 text-[12px]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {addProgress && (
+                <div className="glass rounded-xl p-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between text-[12px] text-white/60">
+                    <span>{addProgress.message ?? 'Adding stems'}</span>
+                    <span className="tabular-nums">{Math.round(addProgress.pct)}%</span>
+                  </div>
+                  <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full bg-violet-400 transition-all" style={{ width: `${addProgress.pct}%` }} />
+                  </div>
+                  <button
+                    onClick={() => void window.stemkit.cancelJob(song.videoId)}
+                    className="no-drag self-start text-[11px] text-white/45 hover:text-white"
+                  >
+                    Cancel — keep current stems
+                  </button>
+                </div>
+              )}
+
+              {addError && (
+                <div className="rounded-xl bg-rose-500/10 border border-rose-400/20 px-3 py-2 text-xs text-rose-200 break-words">
+                  Could not add stems: {addError}
+                </div>
+              )}
             </aside>
           </div>
 

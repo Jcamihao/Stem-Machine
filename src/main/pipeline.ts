@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { createInterface } from 'readline'
-import { existsSync, readdirSync, mkdirSync, rmSync, statSync } from 'fs'
+import { existsSync, readdirSync, mkdirSync, rmSync, statSync, renameSync } from 'fs'
 import { basename, extname, join } from 'path'
 import { BrowserWindow } from 'electron'
 import {
@@ -33,7 +33,8 @@ import {
   AUDIO_EXTENSIONS,
   wavDuration,
   beatsPath,
-  loadBeats
+  loadBeats,
+  replaceSong
 } from './library'
 import type { BeatGrid, JobEvent, JobStage } from '../shared/types'
 import { MODEL_DEFAULT, MODEL_EXTENDED } from '../shared/types'
@@ -47,6 +48,9 @@ interface ActiveJob {
   model: string
   cancelled: boolean
   proc?: ChildProcess
+  // separando de novo uma música que já está na biblioteca (adicionar stem):
+  // cancelar não pode apagar a pasta dela
+  resplit?: boolean
 }
 
 const jobs = new Map<string, ActiveJob>()
@@ -88,7 +92,15 @@ function progress(
   if (!jobs.has(job.videoId) || job.cancelled) return
   send({
     kind: 'progress',
-    data: { videoId: job.videoId, stage, pct, message, title: job.title, model: job.model }
+    data: {
+      videoId: job.videoId,
+      stage,
+      pct,
+      message,
+      title: job.title,
+      model: job.model,
+      ...(job.resplit ? { resplit: true } : {})
+    }
   })
 }
 
@@ -254,6 +266,65 @@ export function analyzeBeats(videoId: string): Promise<BeatGrid> {
     beatAnalyses.set(videoId, pending)
   }
   return pending
+}
+
+const SEPARABLE_STEMS = ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other']
+
+/* adicionar stem a uma música da biblioteca, sem reenviar a música:
+   - se o stem já está no disco (o separate.py grava os não escolhidos) e o motor
+     é o mesmo, só passa a mostrá-lo
+   - senão separa de novo a partir do mix.wav guardado. Os stems atuais vão para
+     um backup e voltam se der erro ou se cancelar */
+export async function addStems(videoId: string, extra: string[]): Promise<void> {
+  const fail = (message: string): void =>
+    send({ kind: 'failed', data: { videoId, message, resplit: true } })
+  const song = loadSongs().find((s) => s.videoId === videoId)
+  if (!song) return fail('Song not found')
+  if (jobs.has(videoId)) return fail('This song is already being processed')
+  const current = stemsFor(song)
+  const wanted = SEPARABLE_STEMS.filter((s) => current.includes(s) || extra.includes(s))
+  const needsSix = wanted.includes('guitar') || wanted.includes('piano')
+  const plan = resolveEngine(needsSix ? MODEL_EXTENDED : MODEL_DEFAULT, wanted)
+
+  if (song.model === plan.modelTag && stemsPresent(videoId, wanted)) {
+    const updated = { ...song, stems: wanted }
+    replaceSong(updated)
+    send({ kind: 'done', data: { videoId, song: updated } })
+    return
+  }
+  if (!existsSync(mixWavPath(videoId))) {
+    return fail('The original audio for this song is missing — import it again')
+  }
+
+  const job: ActiveJob = { videoId, title: song.title, model: plan.modelTag, cancelled: false, resplit: true }
+  jobs.set(videoId, job)
+  const dir = stemsDir(videoId)
+  const backup = `${dir}.bak`
+  const startedAt = Date.now()
+  rmSync(backup, { recursive: true, force: true })
+  if (existsSync(dir)) renameSync(dir, backup)
+  mkdirSync(dir, { recursive: true })
+  try {
+    const produced = await runSeparation(job, plan, wanted)
+    if (job.cancelled || !jobs.has(videoId)) throw new Error('cancelled')
+    if (!loadBeats(videoId)) await detectBeats(job)
+    rmSync(backup, { recursive: true, force: true })
+    const updated = {
+      ...song,
+      model: plan.modelTag,
+      stems: produced,
+      took: Math.round((Date.now() - startedAt) / 1000)
+    }
+    replaceSong(updated)
+    send({ kind: 'done', data: { videoId, song: updated } })
+  } catch (err) {
+    rmSync(dir, { recursive: true, force: true })
+    if (existsSync(backup)) renameSync(backup, dir)
+    const message = err instanceof Error ? err.message : String(err)
+    if (message !== 'cancelled') fail(message)
+  } finally {
+    jobs.delete(videoId)
+  }
 }
 
 function finalizeJob(
@@ -812,7 +883,7 @@ export function cancelJob(videoId?: string): void {
     job.cancelled = true
     killTree(job.proc as ChildProcess)
     jobs.delete(job.videoId)
-    rmSync(songDir(job.videoId), { recursive: true, force: true })
+    if (!job.resplit) rmSync(songDir(job.videoId), { recursive: true, force: true })
     send({ kind: 'failed', data: { videoId: job.videoId, message: 'Cancelled' } })
   }
 }

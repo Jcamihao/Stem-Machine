@@ -226,9 +226,14 @@ def main():
     out_cpu = sources[0].cpu().numpy()
     written = []
     for i, name in enumerate(model.sources):
-        if wanted is not None and name not in wanted:
-            continue
         path = os.path.join(args.out, f"{name}.wav")
+        if wanted is not None and name not in wanted:
+            # stem não escolhido: grava mesmo assim (fica oculto) para poder ser
+            # adicionado depois sem separar de novo. Não sobrescreve o que já
+            # existe (ex.: vocals.wav do motor de vocal, gravado antes)
+            if not os.path.exists(path):
+                save_wav_f32(path, out_cpu[i], sr)
+            continue
         save_wav_f32(path, out_cpu[i], sr)
         written.append(name)
         emit(type="stem", name=name)

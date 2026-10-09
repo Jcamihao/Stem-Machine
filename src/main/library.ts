@@ -81,6 +81,13 @@ export function upsertSong(song: Song): Song[] {
   return songs
 }
 
+// atualiza a música sem mudar a posição dela na biblioteca
+export function replaceSong(song: Song): Song[] {
+  const songs = loadSongs().map((s) => (s.videoId === song.videoId ? song : s))
+  saveSongs(songs)
+  return songs
+}
+
 export function removeSong(videoId: string): Song[] {
   const songs = loadSongs().filter((s) => s.videoId !== videoId)
   saveSongs(songs)

@@ -62,6 +62,8 @@ export default function App(): React.ReactElement {
     void window.stemkit.getSettings().then(setSettings)
     const offSettings = window.stemkit.onSettingsChange(setSettings)
     const offJob = window.stemkit.onJobEvent((ev) => {
+      // "adicionar stem" acontece dentro do player (ele mostra progresso e erro)
+      if (ev.kind !== 'done' && ev.data.resplit) return
       if (ev.kind === 'progress') {
         setJobs((prev) => ({ ...prev, [ev.data.videoId]: ev.data }))
         setErrors((prev) => (prev[ev.data.videoId] ? withoutKey(prev, ev.data.videoId) : prev))
@@ -255,7 +257,14 @@ export default function App(): React.ReactElement {
       />
     )
   } else if (activeSong) {
-    main = <Player key={activeSong.videoId} song={activeSong} settings={settings ?? undefined} />
+    // a key muda quando os stems mudam (adicionar stem): o player recarrega o áudio
+    main = (
+      <Player
+        key={`${activeSong.videoId}|${activeSong.model}|${(activeSong.stems ?? []).join(',')}`}
+        song={activeSong}
+        settings={settings ?? undefined}
+      />
+    )
   } else {
     main = (
       <Home

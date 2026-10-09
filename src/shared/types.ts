@@ -95,6 +95,8 @@ export interface JobProgress {
   pct: number
   message?: string
   model?: string
+  // "adicionar stem" numa música da biblioteca: o progresso aparece no player
+  resplit?: boolean
 }
 
 export interface JobDone {
@@ -105,6 +107,7 @@ export interface JobDone {
 export interface JobFailed {
   videoId: string
   message: string
+  resplit?: boolean
 }
 
 export type JobEvent =
@@ -135,6 +138,7 @@ export interface StemKitApi {
   getBeats(videoId: string): Promise<BeatGrid | null>
   analyzeBeats(videoId: string): Promise<BeatGrid>
   saveClick(videoId: string, wav: Uint8Array): Promise<void>
+  addStems(videoId: string, stems: string[]): Promise<void>
   exportStem(videoId: string, stem: string): Promise<{ saved: boolean; path?: string }>
   exportAllStems(videoId: string): Promise<{ saved: boolean; path?: string; count?: number }>
   searchYouTube(query: string): Promise<SearchResult[]>
