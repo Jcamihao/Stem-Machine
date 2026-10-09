@@ -1,5 +1,5 @@
 import type { StemId } from '../../../shared/types'
-import { MicIcon, DrumIcon, BassIcon, WaveIcon, PianoIcon, GuitarIcon, MetronomeIcon } from '../components/Icons'
+import { MicIcon, DrumIcon, BassIcon, WaveIcon, PianoIcon, GuitarIcon, MetronomeIcon, GuideIcon } from '../components/Icons'
 
 export interface StemMeta {
   id: StemId
@@ -15,11 +15,12 @@ const ALL_META: Record<StemId, StemMeta> = {
   guitar: { id: 'guitar', label: 'guitar', color: '#F472B6', icon: <GuitarIcon /> },
   piano: { id: 'piano', label: 'piano', color: '#FBBF24', icon: <PianoIcon /> },
   other: { id: 'other', label: 'other', color: '#34D399', icon: <WaveIcon /> },
-  click: { id: 'click', label: 'click', color: '#7DD3FC', icon: <MetronomeIcon /> }
+  click: { id: 'click', label: 'click', color: '#7DD3FC', icon: <MetronomeIcon /> },
+  guide: { id: 'guide', label: 'guide', color: '#FDBA74', icon: <GuideIcon /> }
 }
 
-// click sempre por último, abaixo de other
-const PREFERRED_ORDER: StemId[] = ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other', 'click']
+// gerados por último: click abaixo de other, guia abaixo do click
+const PREFERRED_ORDER: StemId[] = ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other', 'click', 'guide']
 
 export { ALL_META as STEM_INFO, PREFERRED_ORDER }
 

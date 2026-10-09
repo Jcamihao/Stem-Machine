@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { AppSettings, BeatGrid, SectionMap, Song, StemId } from '../../../shared/types'
 import { engine, decodePayload, isAudible, renderClick, type BufferMap } from '../lib/engine'
 import { encodeWav } from '../lib/wav'
+import { decodeGuideClips, renderGuide, type GuideClips } from '../lib/guide'
 import { buildStemMeta, STEM_INFO } from '../lib/stems'
 import { fmtTime } from '../lib/format'
 import { SongThumb } from '../lib/thumbs'
@@ -33,6 +34,20 @@ function getDecoded(song: Song): Promise<BufferCacheMap> {
 }
 
 const SEPARABLE: StemId[] = ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other']
+const GENERATED: StemId[] = ['click', 'guide']
+
+// falas da guia: geradas/decodificadas uma vez por sessão
+let guideClipsPromise: Promise<GuideClips> | null = null
+function loadGuideClips(): Promise<GuideClips> {
+  guideClipsPromise ??= window.stemkit
+    .getGuideClips()
+    .then(decodeGuideClips)
+    .catch((err) => {
+      guideClipsPromise = null
+      throw err
+    })
+  return guideClipsPromise
+}
 
 /* ½×: fica uma batida sim, outra não, mantendo todo "1" do compasso;
    2×: acrescenta uma batida no meio de cada intervalo */
@@ -141,7 +156,17 @@ export function Player({ song, settings }: Props): React.ReactElement {
 
     let cancelled = false
     void window.stemkit.getBeats(song.videoId).then((grid) => {
-      if (!cancelled) setBeats(grid)
+      if (cancelled) return
+      setBeats(grid)
+      // grade da versão 1 (sem DBN, "1" único para a música toda): refaz em segundo plano
+      if (grid && grid.version < 2) {
+        void window.stemkit
+          .analyzeBeats(song.videoId)
+          .then((next) => {
+            if (!cancelled) setBeats(next)
+          })
+          .catch(() => {})
+      }
     })
     setSections(null)
     setSectionsError(null)
@@ -243,7 +268,7 @@ export function Player({ song, settings }: Props): React.ReactElement {
     const stemDuration = Math.max(
       0,
       ...Object.entries(buffers)
-        .filter(([id, b]) => id !== 'click' && b)
+        .filter(([id, b]) => !GENERATED.includes(id as StemId) && b)
         .map(([, b]) => b!.duration)
     )
     if (stemDuration <= 0) return
@@ -254,6 +279,45 @@ export function Player({ song, settings }: Props): React.ReactElement {
     setVols((prev) => ('click' in prev ? prev : { ...prev, click: 1 }))
     // buffers fica fora das dependências: o próprio click mudaria buffers e geraria de novo
   }, [beats, clickFactor, decoding])
+
+  // guia de voz como stem: precisa das batidas e das seções
+  const [guideError, setGuideError] = useState<string | null>(null)
+  useEffect(() => {
+    if (decoding) return
+    const list = sections?.sections
+    if (!beats || !list?.length) {
+      engine.setStemBuffer('guide', null)
+      setBuffers((prev) => {
+        if (!prev.guide) return prev
+        const { guide: _drop, ...rest } = prev
+        return rest
+      })
+      return
+    }
+    const stemDuration = Math.max(
+      0,
+      ...Object.entries(buffers)
+        .filter(([id, b]) => !GENERATED.includes(id as StemId) && b)
+        .map(([, b]) => b!.duration)
+    )
+    if (stemDuration <= 0) return
+    let cancelled = false
+    setGuideError(null)
+    loadGuideClips()
+      .then((clips) => {
+        if (cancelled) return
+        const guide = renderGuide(list, beats, clips, stemDuration)
+        engine.setStemBuffer('guide', guide)
+        setBuffers((prev) => ({ ...prev, guide }))
+        setVols((prev) => ('guide' in prev ? prev : { ...prev, guide: 1 }))
+      })
+      .catch((err) => {
+        if (!cancelled) setGuideError(err instanceof Error ? err.message : String(err))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [beats, sections, decoding])
 
   useEffect(() => {
     if (!playing) return
@@ -466,27 +530,32 @@ export function Player({ song, settings }: Props): React.ReactElement {
     setAddPick(new Set())
   }
 
-  // o click só existe em memória: grava stems/click.wav antes de exportar
-  const saveClick = useCallback(async (): Promise<void> => {
-    if (buffers.click) await window.stemkit.saveClick(song.videoId, encodeWav(buffers.click))
-  }, [buffers.click, song.videoId])
+  // click e guia só existem em memória: viram stems/<nome>.wav antes de exportar
+  const saveGenerated = useCallback(
+    async (stem: 'click' | 'guide'): Promise<void> => {
+      const buffer = buffers[stem]
+      if (buffer) await window.stemkit.saveGenerated(song.videoId, stem, encodeWav(buffer))
+    },
+    [buffers, song.videoId]
+  )
 
   const exportStem = useCallback(
     (stem: string): void => {
       void (async () => {
-        if (stem === 'click') await saveClick()
+        if (stem === 'click' || stem === 'guide') await saveGenerated(stem)
         await window.stemkit.exportStem(song.videoId, stem)
       })()
     },
-    [song.videoId, saveClick]
+    [song.videoId, saveGenerated]
   )
 
   const exportAllStems = useCallback((): void => {
     void (async () => {
-      await saveClick()
+      await saveGenerated('click')
+      await saveGenerated('guide')
       await window.stemkit.exportAllStems(song.videoId)
     })()
-  }, [song.videoId, saveClick])
+  }, [song.videoId, saveGenerated])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -676,7 +745,7 @@ export function Player({ song, settings }: Props): React.ReactElement {
             onAnalyzeBeats={analyzeBeats}
             sections={sections?.sections ?? null}
             sectionsBusy={sectionsBusy}
-            sectionsError={sectionsError}
+            sectionsError={sectionsError ?? (guideError ? `Guia: ${guideError}` : null)}
             onAnalyzeSections={analyzeSections}
             onRenameSection={renameSection}
             onLoopSection={loopSection}

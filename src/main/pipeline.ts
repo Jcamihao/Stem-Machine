@@ -220,7 +220,10 @@ function beatsArgs(videoId: string): string[] {
     '--out',
     beatsPath(videoId),
     '--checkpoint',
-    beatModelPath()
+    beatModelPath(),
+    // o DBN (compasso coerente) vem do madmom_infer instalado com o motor de seções
+    '--lib',
+    sectionsLibDir()
   ]
 }
 
@@ -229,6 +232,7 @@ function beatsArgs(videoId: string): string[] {
    oferece "analisar batidas" depois */
 async function detectBeats(job: ActiveJob): Promise<void> {
   if (!(await ensureBeatEngine())) return
+  await ensureSectionsEngine()
   if (job.cancelled || !jobs.has(job.videoId)) throw new Error('cancelled')
   progress(job, 'finalize', 0, 'Detecting beats')
   try {
@@ -302,6 +306,7 @@ export function analyzeBeats(videoId: string): Promise<BeatGrid> {
   return once(`beats:${videoId}`, async () => {
     if (!existsSync(mixWavPath(videoId))) throw new Error('Original audio not found for this song')
     if (!(await ensureBeatEngine())) throw new Error('Beat engine unavailable')
+    await ensureSectionsEngine()
     await runScript(beatsArgs(videoId))
     const grid = loadBeats(videoId)
     if (!grid) throw new Error('Beat detection produced no result')

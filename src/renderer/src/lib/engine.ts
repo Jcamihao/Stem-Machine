@@ -20,10 +20,10 @@ export async function decodePayload(
   return out
 }
 
-// o click continua tocando quando outro stem está em solo; só o M dele o desliga
+// click e guia continuam tocando quando outro stem está em solo; só o M os desliga
 export function isAudible(id: StemId, mutes: Set<StemId>, solos: Set<StemId>): boolean {
   if (mutes.has(id)) return false
-  if (id === 'click') return true
+  if (id === 'click' || id === 'guide') return true
   return solos.size === 0 || solos.has(id)
 }
 

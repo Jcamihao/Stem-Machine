@@ -3,9 +3,12 @@
 Usa o beat_this (rede neural da JKU Linz, licença MIT) para achar as batidas e
 o "1" de cada compasso, e depois transforma isso numa grade estável:
 
-- um pulso só na música inteira (a rede às vezes conta um trecho no dobro);
+- compasso coerente: pós-processamento DBN (madmom_infer, da pasta das
+  seções) quando disponível; sem ele, usa a saída direta da rede;
+- um pulso só na música inteira, escolhido pelo TEMPO de música em cada
+  andamento (a rede às vezes conta um trecho no dobro ou na metade);
 - o click segue andando nas pausas, em vez de sumir;
-- o "1" segue uma contagem única, sem reiniciar no meio da música.
+- o "1" é escolhido por trechos (gravação ao vivo pode ganhar/perder um tempo).
 
 Saída: JSON com bpm, beats (segundos) e downbeats (segundos).
 """
@@ -40,11 +43,19 @@ def read_wav(path):
     return signal, sr
 
 
-def follow_grid(beats, downbeats, beats_per_bar=4):
+def dominant_period(beats):
+    """Andamento que ocupa mais TEMPO da música (não o que tem mais batidas:
+    num trecho contado no dobro há o dobro de batidas votando)."""
+    ibi = np.diff(beats)
+    order = np.argsort(ibi)
+    cum = np.cumsum(ibi[order])
+    return float(ibi[order][np.searchsorted(cum, cum[-1] / 2)])
+
+
+def follow_grid(beats, period):
     """Click sempre no passo do andamento dominante: a cada passo encaixa na
-    batida detectada mais próxima; sem batida perto (pausa, trecho contado no
-    dobro), segue sozinho no mesmo passo."""
-    period = float(np.median(np.diff(beats)))
+    batida detectada mais próxima; sem batida perto (pausa, trecho contado em
+    outro andamento), segue sozinho no mesmo passo."""
     grid = [float(beats[0])]
     local = period
     while grid[-1] + 0.5 * local < beats[-1]:
@@ -54,12 +65,67 @@ def follow_grid(beats, downbeats, beats_per_bar=4):
         if len(grid) > 4:
             # acompanha pequenas variações de andamento sem mudar de "oitava"
             local = float(np.clip(np.median(np.diff(grid[-9:])), 0.9 * period, 1.1 * period))
-    grid = np.array(grid)
-    # fase do "1": a posição (de 0 a 3) que mais coincide com os "1" da rede
-    near = [int(np.argmin(np.abs(grid - d))) for d in downbeats if np.min(np.abs(grid - d)) < 0.08]
-    counts = np.bincount([i % beats_per_bar for i in near], minlength=beats_per_bar)
-    phase = int(counts.argmax()) if near else 0
-    return grid, grid[phase::beats_per_bar], 60.0 / period
+    return np.array(grid)
+
+
+def bar_phases(grid, beats, downbeats, period, beats_per_bar, block_bars=8):
+    """Fase do "1" por blocos de compassos. Só votam os "1" da rede em trechos
+    onde ela contou no mesmo andamento do click; bloco sem voto claro herda a
+    fase do anterior (evita o acento ficar trocando à toa)."""
+    ibi = np.diff(beats)
+    votes = []
+    for d in downbeats:
+        i = int(np.argmin(np.abs(grid - d)))
+        if abs(grid[i] - d) > 0.08:
+            continue
+        j = int(np.clip(np.searchsorted(beats, d), 1, len(ibi)))
+        local = float(np.median(ibi[max(0, j - 4):j + 4]))
+        if abs(local - period) <= 0.15 * period:
+            votes.append(i)
+    if not votes:
+        return np.zeros(len(grid), dtype=int)
+    votes = np.array(votes)
+    block = block_bars * beats_per_bar
+    phases = np.zeros(len(grid), dtype=int)
+    current = int(np.bincount(votes % beats_per_bar, minlength=beats_per_bar).argmax())
+    for start in range(0, len(grid), block):
+        in_block = votes[(votes >= start) & (votes < start + block)]
+        if len(in_block) >= 3:
+            counts = np.bincount(in_block % beats_per_bar, minlength=beats_per_bar)
+            if counts.max() >= 0.6 * len(in_block):
+                current = int(counts.argmax())
+        phases[start:start + block] = current
+    return phases
+
+
+def build_grid(beats, downbeats):
+    period = dominant_period(beats)
+    grid = follow_grid(beats, period)
+    # compasso: o tamanho mais comum entre "1"s da rede, nos trechos no andamento dominante
+    gaps = np.diff(np.searchsorted(beats, downbeats))
+    gaps = gaps[(gaps == 3) | (gaps == 4)]
+    beats_per_bar = int(np.bincount(gaps).argmax()) if len(gaps) else 4
+    phases = bar_phases(grid, beats, downbeats, period, beats_per_bar)
+    bars = grid[[i for i in range(len(grid)) if (i - phases[i]) % beats_per_bar == 0]]
+    return grid, bars, 60.0 / period, beats_per_bar
+
+
+def load_dbn(lib):
+    """DBN do madmom_infer (vem com o motor de seções). Sem ele, None."""
+    if not lib:
+        return None
+    sys.path.insert(0, lib)
+    try:
+        import madmom_infer
+        import madmom_infer.features
+        import madmom_infer.features.downbeats as downbeats_mod
+    except Exception:
+        return None
+    # o beat_this procura o pacote com o nome original
+    sys.modules["madmom"] = madmom_infer
+    sys.modules["madmom.features"] = madmom_infer.features
+    sys.modules["madmom.features.downbeats"] = downbeats_mod
+    return downbeats_mod
 
 
 def main():
@@ -67,6 +133,7 @@ def main():
     parser.add_argument("--input", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--checkpoint", required=True)
+    parser.add_argument("--lib", default="")
     args = parser.parse_args()
 
     emit(type="progress", stage="beats", pct=0, message="Detecting beats")
@@ -81,7 +148,8 @@ def main():
         fail(f"could not read audio: {e}")
     try:
         # CPU de propósito: leva poucos segundos e não disputa a GPU com a separação
-        tracker = Audio2Beats(checkpoint_path=args.checkpoint, device="cpu", dbn=False)
+        use_dbn = load_dbn(args.lib) is not None
+        tracker = Audio2Beats(checkpoint_path=args.checkpoint, device="cpu", dbn=use_dbn)
         beats, downbeats = tracker(signal, sr)
     except Exception as e:
         fail(f"beat detection failed: {e}")
@@ -91,17 +159,17 @@ def main():
     if len(beats) < 8:
         fail("not enough beats detected")
 
-    grid, bars, bpm = follow_grid(beats, downbeats)
+    grid, bars, bpm, beats_per_bar = build_grid(beats, downbeats)
     result = {
-        "version": 1,
+        "version": 2,
         "bpm": round(bpm, 2),
-        "beatsPerBar": 4,
+        "beatsPerBar": beats_per_bar,
         "beats": [round(float(t), 4) for t in grid],
         "downbeats": [round(float(t), 4) for t in bars],
     }
     with open(args.out, "w") as f:
         json.dump(result, f)
-    emit(type="done", bpm=result["bpm"], beats=len(grid))
+    emit(type="done", bpm=result["bpm"], beats=len(grid), dbn=use_dbn)
 
 
 if __name__ == "__main__":

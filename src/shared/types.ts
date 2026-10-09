@@ -1,5 +1,5 @@
-// 'click' não vem da separação: é gerado no player a partir das batidas detectadas
-export type StemId = 'vocals' | 'drums' | 'bass' | 'other' | 'piano' | 'guitar' | 'click'
+// 'click' e 'guide' não vêm da separação: são gerados no player (batidas e seções)
+export type StemId = 'vocals' | 'drums' | 'bass' | 'other' | 'piano' | 'guitar' | 'click' | 'guide'
 
 // which GPU vendor GPU acceleration targets: NVIDIA via CUDA torch (windows
 // + linux), AMD via ROCm torch (linux only)
@@ -151,7 +151,8 @@ export interface StemKitApi {
   getBuffers(videoId: string): Promise<Record<string, Uint8Array>>
   getBeats(videoId: string): Promise<BeatGrid | null>
   analyzeBeats(videoId: string): Promise<BeatGrid>
-  saveClick(videoId: string, wav: Uint8Array): Promise<void>
+  saveGenerated(videoId: string, stem: 'click' | 'guide', wav: Uint8Array): Promise<void>
+  getGuideClips(): Promise<Record<string, Uint8Array>>
   addStems(videoId: string, stems: string[]): Promise<void>
   getSections(videoId: string): Promise<SectionMap | null>
   analyzeSections(videoId: string): Promise<SectionMap>

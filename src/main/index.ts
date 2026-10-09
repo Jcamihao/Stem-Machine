@@ -33,6 +33,7 @@ import { loadSettings, saveSettings } from './settings'
 import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUDIO_EXTENSIONS, loadBeats, loadSections, saveSections } from './library'
 import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addStems, analyzeSections } from './pipeline'
 import { initUpdater } from './updater'
+import { guideClips } from './voice'
 import { runSmoke } from './smoke'
 import { getThumb, clearThumbMemo } from './thumbs'
 
@@ -252,11 +253,12 @@ app.whenReady().then(async () => {
   // só músicas da biblioteca: o id vira caminho de pasta
   const inLibrary = (videoId: string): boolean => loadSongs().some((s) => s.videoId === videoId)
   ipcMain.handle('song:beats', (_e, videoId: string) => (inLibrary(videoId) ? loadBeats(videoId) : null))
-  // o click é gerado no player; vira stems/click.wav na hora de exportar
-  ipcMain.handle('click:save', (_e, videoId: string, wav: Uint8Array) => {
-    if (!inLibrary(videoId)) throw new Error('Song not found')
-    writeFileSync(join(stemsDir(videoId), 'click.wav'), Buffer.from(wav))
+  // click e guia são gerados no player; viram stems/<nome>.wav na hora de exportar
+  ipcMain.handle('generated:save', (_e, videoId: string, stem: string, wav: Uint8Array) => {
+    if (!inLibrary(videoId) || !['click', 'guide'].includes(stem)) throw new Error('Invalid stem')
+    writeFileSync(join(stemsDir(videoId), `${stem}.wav`), Buffer.from(wav))
   })
+  ipcMain.handle('voice:clips', () => guideClips())
   ipcMain.handle('stems:add', (_e, videoId: string, stems: string[]) => {
     void addStems(videoId, stems)
   })
@@ -320,7 +322,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('stems:export-all', async (_e, videoId: string) => {
     const song = loadSongs().find((s) => s.videoId === videoId)
     const dir = stemsDir(videoId)
-    const list = [...stemsFor(song), ...(existsSync(join(dir, 'click.wav')) ? ['click'] : [])]
+    const generated = ['click', 'guide'].filter((name) => existsSync(join(dir, `${name}.wav`)))
+    const list = [...stemsFor(song), ...generated]
     for (const name of list) {
       if (!existsSync(join(dir, `${name}.wav`))) throw new Error(`Missing stem ${name}`)
     }

@@ -24,8 +24,8 @@ interface Props {
   onOpenSettings: () => void
 }
 
-// o click não se escolhe: é gerado automaticamente a partir das batidas
-const ALL_STEMS = PREFERRED_ORDER.filter((id) => id !== 'click')
+// click e guia não se escolhem: são gerados automaticamente (batidas e seções)
+const ALL_STEMS = PREFERRED_ORDER.filter((id) => id !== 'click' && id !== 'guide')
 
 export function Home({
   hasSongs,
