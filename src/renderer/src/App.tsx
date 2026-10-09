@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AppSettings, EnvStatus, JobProgress, JobStage, Song, UpdateEvent } from '../../shared/types'
+import type { AppSettings, EnvStatus, JobProgress, JobStage, Song } from '../../shared/types'
 import { MODEL_DEFAULT } from '../../shared/types'
 import { parseVideoId } from '../../shared/url'
 import { localSongId, isLocalId } from '../../shared/local'
-import { Sidebar } from './components/Sidebar'
+import { Library } from './components/Library'
+import { BackIcon } from './components/studio/icons'
 import { Home } from './components/Home'
 import { Processing } from './components/Processing'
 import { Player } from './components/Player'
@@ -46,11 +47,12 @@ export default function App(): React.ReactElement {
   const [status, setStatus] = useState<EnvStatus | null>(null)
   const [songs, setSongs] = useState<Song[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
+  // tela "Adicionar" (busca no YouTube / arquivo local), aberta pela biblioteca
+  const [adding, setAdding] = useState(false)
   const [jobs, setJobs] = useState<Record<string, JobProgress>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [lastStart, setLastStart] = useState<LastStart | null>(null)
   const [envLogs, setEnvLogs] = useState<EnvLog[]>([])
-  const [update, setUpdate] = useState<UpdateEvent | null>(null)
   const [appVersion, setAppVersion] = useState<string | undefined>(undefined)
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -81,13 +83,11 @@ export default function App(): React.ReactElement {
     const offEnv = window.stemkit.onEnvEvent((e) =>
       setEnvLogs((l) => [...l.slice(-300), { message: e.message, level: e.level }])
     )
-    const offUpdate = window.stemkit.onUpdateEvent((e) => setUpdate(e))
     const offAbout = window.stemkit.onShowAbout(() => setAboutOpen(true))
     void window.stemkit.getAppVersion().then(setAppVersion)
     return () => {
       offJob()
       offEnv()
-      offUpdate()
       offAbout()
       offSettings()
     }
@@ -103,6 +103,7 @@ export default function App(): React.ReactElement {
     async (url: string, model: string = MODEL_DEFAULT, stems?: string[]): Promise<void> => {
       const vid = parseVideoId(url)
       if (!vid) return
+      setAdding(false)
       setActiveId(vid)
       setLastStart({ kind: 'url', url, model })
       setErrors((prev) => withoutKey(prev, vid))
@@ -119,6 +120,7 @@ export default function App(): React.ReactElement {
   const startLocal = useCallback(
     async (filePath: string, model: string = MODEL_DEFAULT, stems?: string[]): Promise<void> => {
       const id = localSongId(filePath)
+      setAdding(false)
       setActiveId(id)
       setLastStart({ kind: 'local', filePath, model })
       setErrors((prev) => withoutKey(prev, id))
@@ -241,9 +243,25 @@ export default function App(): React.ReactElement {
 
   const selectedIsBusy = !!(selectedJob || selectedError)
 
+  const openSettings = (): void => {
+    void window.stemkit.envStatus().then(setStatus)
+    setSettingsOpen(true)
+  }
+  // telas secundárias (progresso, adicionar) ganham uma barra com seta de voltar
+  const withBack = (content: React.ReactElement, onBack: () => void): React.ReactElement => (
+    <div className="h-full flex flex-col bg-[#0a0a0a]">
+      <div className="h-14 shrink-0 flex items-center px-5">
+        <button onClick={onBack} title="Voltar para a biblioteca" className="no-drag text-white/80 hover:text-white">
+          <BackIcon />
+        </button>
+      </div>
+      <div className="flex-1 min-h-0">{content}</div>
+    </div>
+  )
+
   let main: React.ReactElement
   if (selectedIsBusy) {
-    main = (
+    main = withBack(
       <Processing
         job={selectedJob}
         error={selectedError}
@@ -254,7 +272,8 @@ export default function App(): React.ReactElement {
         onCancel={() => activeId && cancelSelectedJob(activeId)}
         onRetry={retryJob}
         onUpdateYtDlp={() => void updateYtDlp()}
-      />
+      />,
+      () => setActiveId(null)
     )
   } else if (activeSong) {
     // a key muda quando os stems mudam (adicionar stem): o player recarrega o áudio
@@ -266,8 +285,8 @@ export default function App(): React.ReactElement {
         onBack={() => setActiveId(null)}
       />
     )
-  } else {
-    main = (
+  } else if (adding) {
+    main = withBack(
       <Home
         hasSongs={displaySongs.length > 0}
         songs={displaySongs}
@@ -275,34 +294,30 @@ export default function App(): React.ReactElement {
         settings={settings ?? undefined}
         onStart={(u, m, s) => void startUrl(u, m, s)}
         onStartLocal={(path, m, s) => void startLocal(path, m, s)}
-        onSelect={(id) => setActiveId(id)}
-        onOpenSettings={() => {
-          void window.stemkit.envStatus().then(setStatus)
-          setSettingsOpen(true)
+        onSelect={(id) => {
+          setAdding(false)
+          setActiveId(id)
         }}
+        onOpenSettings={openSettings}
+      />,
+      () => setAdding(false)
+    )
+  } else {
+    main = (
+      <Library
+        songs={displaySongs}
+        pending={pendingMap}
+        appVersion={appVersion}
+        onSelect={(id) => setActiveId(id)}
+        onDelete={(id) => void deleteSong(id)}
+        onAdd={() => setAdding(true)}
+        onOpenSettings={openSettings}
       />
     )
   }
 
-  // no player a tela é toda das faixas (estilo estúdio); a biblioteca volta pela seta
-  const studio = !selectedIsBusy && !!activeSong
   return (
     <div className="h-full flex">
-      {!studio && <Sidebar
-        songs={displaySongs}
-        activeId={activeId}
-        pending={pendingMap}
-        update={update ?? undefined}
-        appVersion={appVersion}
-        onSelect={(id) => setActiveId(id)}
-        onDelete={(id) => void deleteSong(id)}
-        onAdd={() => setActiveId(null)}
-        onInstallUpdate={() => window.stemkit.installUpdate()}
-        onOpenSettings={() => {
-          void window.stemkit.envStatus().then(setStatus)
-          setSettingsOpen(true)
-        }}
-      />}
       <main className="flex-1 min-w-0">{main}</main>
       {settings && settingsOpen && (
         <Settings

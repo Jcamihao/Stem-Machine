@@ -22,6 +22,7 @@ const api: StemKitApi = {
   getGuideClips: () => ipcRenderer.invoke('voice:clips'),
   addStems: (videoId, stems) => ipcRenderer.invoke('stems:add', videoId, stems),
   getSections: (videoId) => ipcRenderer.invoke('song:sections', videoId),
+  libraryMeta: () => ipcRenderer.invoke('library:meta'),
   analyzeSections: (videoId) => ipcRenderer.invoke('sections:analyze', videoId),
   saveSections: (videoId, map) => ipcRenderer.invoke('sections:save', videoId, map),
   exportStem: (videoId, stem) => ipcRenderer.invoke('stem:export', videoId, stem),

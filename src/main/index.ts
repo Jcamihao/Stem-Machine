@@ -244,6 +244,10 @@ app.whenReady().then(async () => {
   ipcMain.handle('env:update-ytdlp', async () => updateYtDlp())
 
   ipcMain.handle('library:list', () => loadSongs())
+  // dados extras da tabela da biblioteca (BPM vem do metrônomo de cada música)
+  ipcMain.handle('library:meta', () =>
+    Object.fromEntries(loadSongs().map((s) => [s.videoId, { bpm: loadBeats(s.videoId)?.bpm ?? null }]))
+  )
   ipcMain.handle('library:delete', (_e, videoId: string) => removeSong(videoId))
   ipcMain.handle('song:buffers', (_e, videoId: string) => {
     const song = loadSongs().find((s) => s.videoId === videoId)

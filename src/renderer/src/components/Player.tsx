@@ -101,6 +101,8 @@ export function Player({ song, onBack }: Props): React.ReactElement {
   const [analyzing, setAnalyzing] = useState(false)
   const [clickError, setClickError] = useState<string | null>(null)
   const [sections, setSections] = useState<SectionMap | null>(null)
+  // já sabemos se a música tem batidas/seções salvas (para detectar sozinho se não tiver)
+  const [checked, setChecked] = useState({ beats: false, sections: false })
   const [sectionsBusy, setSectionsBusy] = useState(false)
   const [sectionsError, setSectionsError] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
@@ -140,9 +142,11 @@ export function Player({ song, onBack }: Props): React.ReactElement {
     setAnalyzing(false)
 
     let cancelled = false
+    setChecked({ beats: false, sections: false })
     void window.stemkit.getBeats(song.videoId).then((grid) => {
       if (cancelled) return
       setBeats(grid)
+      setChecked((c) => ({ ...c, beats: true }))
       // grade da versão 1 (sem DBN, "1" único para a música toda): refaz em segundo plano
       if (grid && grid.version < 2) {
         void window.stemkit
@@ -157,7 +161,9 @@ export function Player({ song, onBack }: Props): React.ReactElement {
     setSectionsError(null)
     setSectionsBusy(false)
     void window.stemkit.getSections(song.videoId).then((map) => {
-      if (!cancelled) setSections(map)
+      if (cancelled) return
+      setSections(map)
+      setChecked((c) => ({ ...c, sections: true }))
     })
     setDecoding(true)
     getDecoded(song)
@@ -421,6 +427,15 @@ export function Player({ song, onBack }: Props): React.ReactElement {
     },
     [sections, applyLoop]
   )
+
+  // música sem batidas ou sem seções (separada antes, ou a detecção falhou): detecta
+  // sozinho uma vez ao abrir; se der erro, fica o aviso e o menu ⋮ para tentar de novo
+  useEffect(() => {
+    if (checked.beats && !beats && !analyzing && !clickError) analyzeBeats()
+  }, [checked.beats])
+  useEffect(() => {
+    if (checked.sections && !sections && !sectionsBusy && !sectionsError) analyzeSections()
+  }, [checked.sections])
 
   const getPosition = useCallback((): number => {
     void bump
