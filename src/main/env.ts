@@ -128,6 +128,73 @@ export function beatsScript(): string {
   return join(app.getAppPath(), 'python', 'beats.py')
 }
 
+export function sectionsScript(): string {
+  if (app.isPackaged) {
+    return join(process.resourcesPath, 'python', 'sections.py')
+  }
+  return join(app.getAppPath(), 'python', 'sections.py')
+}
+
+/* seções automáticas: all-in-one-infer (MIT). As dependências dele ficam numa
+   pasta própria, fora do venv da separação (--target), e só as que o venv
+   ainda não tem; versões fixas testadas com o Python 3.11 / numpy 1.26 do app.
+   O modelo (~11MB) o próprio sections.py baixa para a pasta de modelos */
+const SECTIONS_PKGS = [
+  'all-in-one-infer==3.1.0',
+  'madmom-infer==0.2.0',
+  'demucs-infer==4.4.0',
+  'hydra-core==1.3.7',
+  'scipy==1.15.3',
+  'soundfile==0.14.0',
+  'cffi',
+  'pycparser'
+]
+
+export function sectionsLibDir(): string {
+  return join(userDataDir(), 'sections-lib')
+}
+
+export function sectionsModelsDir(): string {
+  return join(modelsDir(), 'allinone')
+}
+
+let sectionsEnginePromise: Promise<boolean> | null = null
+
+export function ensureSectionsEngine(): Promise<boolean> {
+  const marker = join(sectionsLibDir(), '.ready')
+  if (existsSync(marker)) return Promise.resolve(true)
+  if (!sectionsEnginePromise) {
+    sectionsEnginePromise = (async () => {
+      sendEnvEvent('Installing the sections engine…')
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn(
+          venvPython(),
+          ['-m', 'pip', 'install', '-q', '--no-deps', '--upgrade', '--target', sectionsLibDir(), ...SECTIONS_PKGS],
+          { env: { ...process.env } }
+        )
+        child.on('close', (code) =>
+          code === 0 ? resolve() : reject(new Error(`pip install failed (${code})`))
+        )
+        child.on('error', reject)
+      })
+      writeFileSync(marker, SECTIONS_PKGS.join('\n'))
+      sendEnvEvent('Sections engine ready', 'success')
+      return true
+    })()
+      .catch((err) => {
+        sendEnvEvent(
+          `Sections engine failed: ${err instanceof Error ? err.message : String(err)}`,
+          'error'
+        )
+        return false
+      })
+      .finally(() => {
+        sectionsEnginePromise = null
+      })
+  }
+  return sectionsEnginePromise
+}
+
 /* click inteligente: detector de batidas beat_this (JKU Linz, licença MIT).
    O venv já tem torch/torchaudio/einops; faltam só ele e o soxr. --no-deps
    para nunca trocar o torch que o app escolheu (CPU, CUDA ou ROCm). O modelo

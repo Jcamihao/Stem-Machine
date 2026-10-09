@@ -86,6 +86,20 @@ export interface BeatGrid {
   downbeats: number[]
 }
 
+// seções detectadas (python/sections.py); label: intro, verse, chorus, bridge,
+// solo, inst, break, outro. `edited` marca que o usuário corrigiu à mão
+export interface Section {
+  start: number
+  end: number
+  label: string
+}
+
+export interface SectionMap {
+  version: number
+  sections: Section[]
+  edited?: boolean
+}
+
 export type JobStage = 'metadata' | 'download' | 'convert' | 'separate' | 'finalize'
 
 export interface JobProgress {
@@ -139,6 +153,9 @@ export interface StemKitApi {
   analyzeBeats(videoId: string): Promise<BeatGrid>
   saveClick(videoId: string, wav: Uint8Array): Promise<void>
   addStems(videoId: string, stems: string[]): Promise<void>
+  getSections(videoId: string): Promise<SectionMap | null>
+  analyzeSections(videoId: string): Promise<SectionMap>
+  saveSections(videoId: string, map: SectionMap): Promise<void>
   exportStem(videoId: string, stem: string): Promise<{ saved: boolean; path?: string }>
   exportAllStems(videoId: string): Promise<{ saved: boolean; path?: string; count?: number }>
   searchYouTube(query: string): Promise<SearchResult[]>

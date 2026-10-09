@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync, rmSync, mkdirSync, openSync, r
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { userDataDir } from './env'
-import { DEFAULT_STEMS, type BeatGrid, type Song } from '../shared/types'
+import { DEFAULT_STEMS, type BeatGrid, type SectionMap, type Song } from '../shared/types'
 
 // drives both the file-dialog filter and the pre-flight extension check in
 // startLocalJob; anything here is fair game for ffmpeg to decode
@@ -44,6 +44,24 @@ export function mixWavPath(videoId: string): string {
 // grade do click inteligente (python/beats.py)
 export function beatsPath(videoId: string): string {
   return join(songDir(videoId), 'beats.json')
+}
+
+// seções detectadas (python/sections.py), com as correções do usuário
+export function sectionsPath(videoId: string): string {
+  return join(songDir(videoId), 'sections.json')
+}
+
+export function loadSections(videoId: string): SectionMap | null {
+  try {
+    const data = JSON.parse(readFileSync(sectionsPath(videoId), 'utf8'))
+    return Array.isArray(data.sections) ? data : null
+  } catch {
+    return null
+  }
+}
+
+export function saveSections(videoId: string, map: SectionMap): void {
+  writeFileSync(sectionsPath(videoId), JSON.stringify(map))
 }
 
 export function loadBeats(videoId: string): BeatGrid | null {

@@ -12,7 +12,7 @@ import { existsSync, copyFileSync, mkdirSync, createReadStream, statSync, writeF
 import { spawn } from 'child_process'
 import { createServer, type Server } from 'http'
 import type { AddressInfo } from 'net'
-import type { AppSettings } from '../shared/types'
+import type { AppSettings, SectionMap } from '../shared/types'
 import {
   detectTools,
   bootstrap,
@@ -30,8 +30,8 @@ import {
   getStatus
 } from './env'
 import { loadSettings, saveSettings } from './settings'
-import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUDIO_EXTENSIONS, loadBeats } from './library'
-import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addStems } from './pipeline'
+import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUDIO_EXTENSIONS, loadBeats, loadSections, saveSections } from './library'
+import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addStems, analyzeSections } from './pipeline'
 import { initUpdater } from './updater'
 import { runSmoke } from './smoke'
 import { getThumb, clearThumbMemo } from './thumbs'
@@ -259,6 +259,15 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('stems:add', (_e, videoId: string, stems: string[]) => {
     void addStems(videoId, stems)
+  })
+  ipcMain.handle('song:sections', (_e, videoId: string) => (inLibrary(videoId) ? loadSections(videoId) : null))
+  ipcMain.handle('sections:analyze', async (_e, videoId: string) => {
+    if (!inLibrary(videoId)) throw new Error('Song not found')
+    return analyzeSections(videoId)
+  })
+  ipcMain.handle('sections:save', (_e, videoId: string, map: SectionMap) => {
+    if (!inLibrary(videoId)) throw new Error('Song not found')
+    saveSections(videoId, map)
   })
   ipcMain.handle('beats:analyze', async (_e, videoId: string) => {
     if (!inLibrary(videoId)) throw new Error('Song not found')

@@ -18,7 +18,11 @@ import {
   ytDlpRuntimeArgs,
   beatsScript,
   beatModelPath,
-  ensureBeatEngine
+  ensureBeatEngine,
+  sectionsScript,
+  sectionsLibDir,
+  sectionsModelsDir,
+  ensureSectionsEngine
 } from './env'
 import { loadSettings } from './settings'
 import {
@@ -34,9 +38,11 @@ import {
   wavDuration,
   beatsPath,
   loadBeats,
-  replaceSong
+  replaceSong,
+  sectionsPath,
+  loadSections
 } from './library'
-import type { BeatGrid, JobEvent, JobStage } from '../shared/types'
+import type { BeatGrid, JobEvent, JobStage, SectionMap } from '../shared/types'
 import { MODEL_DEFAULT, MODEL_EXTENDED } from '../shared/types'
 import { parseVideoId } from '../shared/url'
 import { localSongId } from '../shared/local'
@@ -232,40 +238,85 @@ async function detectBeats(job: ActiveJob): Promise<void> {
   }
 }
 
-const beatAnalyses = new Map<string, Promise<BeatGrid>>()
+function sectionsArgs(videoId: string): string[] {
+  return [
+    sectionsScript(),
+    '--stems-dir',
+    stemsDir(videoId),
+    '--out',
+    sectionsPath(videoId),
+    '--lib',
+    sectionsLibDir(),
+    '--models',
+    sectionsModelsDir()
+  ]
+}
+
+/* seções automáticas logo depois das batidas. Não é fatal: sem elas a música
+   entra na biblioteca e o player oferece "detectar seções" depois */
+async function detectSections(job: ActiveJob): Promise<void> {
+  if (!(await ensureSectionsEngine())) return
+  if (job.cancelled || !jobs.has(job.videoId)) throw new Error('cancelled')
+  progress(job, 'finalize', 0, 'Detecting sections')
+  try {
+    await runProcess(job, venvPython(), sectionsArgs(job.videoId))
+  } catch (err) {
+    if (err instanceof Error && err.message === 'cancelled') throw err
+  }
+}
+
+// roda um script python fora de um job; a mensagem de erro vem do evento JSON dele
+function runScript(args: string[]): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn(venvPython(), args, { env: { ...process.env } })
+    let scriptError = ''
+    if (child.stdout) {
+      createInterface({ input: child.stdout }).on('line', (line) => {
+        try {
+          const ev = JSON.parse(line)
+          if (ev.type === 'error') scriptError = String(ev.message)
+        } catch {}
+      })
+    }
+    child.on('error', reject)
+    child.on('close', (code) =>
+      code === 0 ? resolve() : reject(new Error(scriptError || `script exited with code ${code}`))
+    )
+  })
+}
+
+// uma análise por música por vez (o botão pode ser clicado de novo enquanto roda)
+const analyses = new Map<string, Promise<unknown>>()
+
+function once<T>(key: string, work: () => Promise<T>): Promise<T> {
+  let pending = analyses.get(key) as Promise<T> | undefined
+  if (!pending) {
+    pending = work().finally(() => analyses.delete(key))
+    analyses.set(key, pending)
+  }
+  return pending
+}
 
 // músicas separadas antes do click (ou cuja detecção falhou): roda só a detecção
 export function analyzeBeats(videoId: string): Promise<BeatGrid> {
-  let pending = beatAnalyses.get(videoId)
-  if (!pending) {
-    pending = (async () => {
-      if (!existsSync(mixWavPath(videoId))) throw new Error('Original audio not found for this song')
-      if (!(await ensureBeatEngine())) throw new Error('Beat engine unavailable')
-      await new Promise<void>((resolve, reject) => {
-        const child = spawn(venvPython(), beatsArgs(videoId), { env: { ...process.env } })
-        let scriptError = ''
-        if (child.stdout) {
-          createInterface({ input: child.stdout }).on('line', (line) => {
-            try {
-              const ev = JSON.parse(line)
-              if (ev.type === 'error') scriptError = String(ev.message)
-            } catch {}
-          })
-        }
-        child.on('error', reject)
-        child.on('close', (code) =>
-          code === 0
-            ? resolve()
-            : reject(new Error(scriptError || `beat detection exited with code ${code}`))
-        )
-      })
-      const grid = loadBeats(videoId)
-      if (!grid) throw new Error('Beat detection produced no result')
-      return grid
-    })().finally(() => beatAnalyses.delete(videoId))
-    beatAnalyses.set(videoId, pending)
-  }
-  return pending
+  return once(`beats:${videoId}`, async () => {
+    if (!existsSync(mixWavPath(videoId))) throw new Error('Original audio not found for this song')
+    if (!(await ensureBeatEngine())) throw new Error('Beat engine unavailable')
+    await runScript(beatsArgs(videoId))
+    const grid = loadBeats(videoId)
+    if (!grid) throw new Error('Beat detection produced no result')
+    return grid
+  })
+}
+
+export function analyzeSections(videoId: string): Promise<SectionMap> {
+  return once(`sections:${videoId}`, async () => {
+    if (!(await ensureSectionsEngine())) throw new Error('Sections engine unavailable')
+    await runScript(sectionsArgs(videoId))
+    const map = loadSections(videoId)
+    if (!map) throw new Error('Section detection produced no result')
+    return map
+  })
 }
 
 const SEPARABLE_STEMS = ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other']
@@ -308,6 +359,7 @@ export async function addStems(videoId: string, extra: string[]): Promise<void> 
     const produced = await runSeparation(job, plan, wanted)
     if (job.cancelled || !jobs.has(videoId)) throw new Error('cancelled')
     if (!loadBeats(videoId)) await detectBeats(job)
+    if (!loadSections(videoId)) await detectSections(job)
     rmSync(backup, { recursive: true, force: true })
     const updated = {
       ...song,
@@ -442,6 +494,7 @@ export async function startJob(
     const producedStems = await runSeparation(job, plan, stems)
     if (job.cancelled || !jobs.has(videoId)) return
     await detectBeats(job)
+    await detectSections(job)
     finalizeJob(job, { title: meta!.title, duration: meta!.duration, addedAt, startedAt }, producedStems)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -508,6 +561,7 @@ export async function startLocalJob(
     const producedStems = await runSeparation(job, plan, stems)
     if (job.cancelled || !jobs.has(videoId)) return
     await detectBeats(job)
+    await detectSections(job)
     finalizeJob(job, { title, duration, addedAt, startedAt, source: 'local' }, producedStems)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

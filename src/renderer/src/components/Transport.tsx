@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { fmtTime } from '../lib/format'
 import { PlayIcon, PauseIcon, ExternalIcon } from './Icons'
+import { SectionBar } from './SectionBar'
+import type { Section } from '../../../shared/types'
 
 export type PresetId = 'all' | 'karaoke' | 'acapella' | 'drumnbass'
 
@@ -44,6 +46,12 @@ interface Props {
   click: ClickState
   onClickFactor: (f: ClickFactor) => void
   onAnalyzeBeats: () => void
+  sections: Section[] | null
+  sectionsBusy: boolean
+  sectionsError: string | null
+  onAnalyzeSections: () => void
+  onRenameSection: (index: number, label: string) => void
+  onLoopSection: (index: number) => void
 }
 
 function SeekBar({
@@ -155,13 +163,28 @@ export function Transport({
   onClearLoop,
   click,
   onClickFactor,
-  onAnalyzeBeats
+  onAnalyzeBeats,
+  sections,
+  sectionsBusy,
+  sectionsError,
+  onAnalyzeSections,
+  onRenameSection,
+  onLoopSection
 }: Props): React.ReactElement {
   const hasLoop = loopA !== null && loopB !== null
   const loopBtn =
     'no-drag h-8 px-2.5 rounded-lg text-[12px] font-semibold transition-colors bg-white/[0.06] hover:bg-white/10 text-white/70 hover:text-white'
   return (
     <div className="glass rounded-2xl px-5 py-4 mt-4 flex flex-col gap-4">
+      {sections && sections.length > 0 && (
+        <SectionBar
+          sections={sections}
+          duration={duration}
+          onSeek={onSeek}
+          onRename={onRenameSection}
+          onLoop={onLoopSection}
+        />
+      )}
       <SeekBar
         duration={duration}
         getPosition={getPosition}
@@ -295,6 +318,17 @@ export function Transport({
           </button>
         )}
         {click.error && <span className="text-[11px] text-rose-300 truncate">{click.error}</span>}
+        {!sections && (
+          <button
+            onClick={onAnalyzeSections}
+            disabled={sectionsBusy}
+            title="Detecta intro, verso, refrão... desta música"
+            className={`${loopBtn} disabled:opacity-60 ml-auto`}
+          >
+            {sectionsBusy ? 'Detectando seções…' : 'Detectar seções'}
+          </button>
+        )}
+        {sectionsError && <span className="text-[11px] text-rose-300 truncate">{sectionsError}</span>}
       </div>
     </div>
   )

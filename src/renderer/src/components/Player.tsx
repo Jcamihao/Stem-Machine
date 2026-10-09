@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { AppSettings, BeatGrid, Song, StemId } from '../../../shared/types'
+import type { AppSettings, BeatGrid, SectionMap, Song, StemId } from '../../../shared/types'
 import { engine, decodePayload, isAudible, renderClick, type BufferMap } from '../lib/engine'
 import { encodeWav } from '../lib/wav'
 import { buildStemMeta, STEM_INFO } from '../lib/stems'
@@ -90,6 +90,9 @@ export function Player({ song, settings }: Props): React.ReactElement {
   const [clickFactor, setClickFactor] = useState<ClickFactor>(1)
   const [analyzing, setAnalyzing] = useState(false)
   const [clickError, setClickError] = useState<string | null>(null)
+  const [sections, setSections] = useState<SectionMap | null>(null)
+  const [sectionsBusy, setSectionsBusy] = useState(false)
+  const [sectionsError, setSectionsError] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [addPick, setAddPick] = useState<Set<StemId>>(new Set())
   const [addProgress, setAddProgress] = useState<{ pct: number; message?: string } | null>(null)
@@ -139,6 +142,12 @@ export function Player({ song, settings }: Props): React.ReactElement {
     let cancelled = false
     void window.stemkit.getBeats(song.videoId).then((grid) => {
       if (!cancelled) setBeats(grid)
+    })
+    setSections(null)
+    setSectionsError(null)
+    setSectionsBusy(false)
+    void window.stemkit.getSections(song.videoId).then((map) => {
+      if (!cancelled) setSections(map)
     })
     setDecoding(true)
     getDecoded(song)
@@ -389,6 +398,46 @@ export function Player({ song, settings }: Props): React.ReactElement {
       })
   }, [song.videoId])
 
+  const analyzeSections = useCallback((): void => {
+    setSectionsBusy(true)
+    setSectionsError(null)
+    const videoId = song.videoId
+    window.stemkit
+      .analyzeSections(videoId)
+      .then((map) => {
+        if (videoId === songIdRef.current) setSections(map)
+      })
+      .catch((err) => {
+        if (videoId === songIdRef.current) setSectionsError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (videoId === songIdRef.current) setSectionsBusy(false)
+      })
+  }, [song.videoId])
+
+  // correção manual do nome: fica salva e marca o mapa como editado
+  const renameSection = useCallback(
+    (index: number, label: string): void => {
+      if (!sections) return
+      const next: SectionMap = {
+        ...sections,
+        edited: true,
+        sections: sections.sections.map((s, i) => (i === index ? { ...s, label } : s))
+      }
+      setSections(next)
+      void window.stemkit.saveSections(song.videoId, next)
+    },
+    [sections, song.videoId]
+  )
+
+  const loopSection = useCallback(
+    (index: number): void => {
+      const s = sections?.sections[index]
+      if (s) applyLoop(s.start, s.end, true)
+    },
+    [sections, applyLoop]
+  )
+
   const getPosition = useCallback((): number => {
     void bump
     return posRef.current
@@ -625,6 +674,12 @@ export function Player({ song, settings }: Props): React.ReactElement {
             }}
             onClickFactor={setClickFactor}
             onAnalyzeBeats={analyzeBeats}
+            sections={sections?.sections ?? null}
+            sectionsBusy={sectionsBusy}
+            sectionsError={sectionsError}
+            onAnalyzeSections={analyzeSections}
+            onRenameSection={renameSection}
+            onLoopSection={loopSection}
           />
 
           <div className="mt-4 space-y-2">
