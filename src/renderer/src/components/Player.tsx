@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { AppSettings, BeatGrid, Song, StemId } from '../../../shared/types'
 import { engine, decodePayload, isAudible, renderClick, type BufferMap } from '../lib/engine'
 import { encodeWav } from '../lib/wav'
@@ -594,77 +595,6 @@ export function Player({ song, settings }: Props): React.ReactElement {
                 )}
               </div>
 
-              {addOpen && (
-                <div className="glass rounded-xl p-3 flex flex-col gap-2.5">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {missingStems.map((id) => {
-                      const info = STEM_INFO[id]
-                      const on = addPick.has(id)
-                      return (
-                        <button
-                          key={id}
-                          onClick={() => toggleAddPick(id)}
-                          className="no-drag px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors capitalize"
-                          style={{
-                            color: on ? info.color : 'rgba(255,255,255,0.55)',
-                            borderColor: on ? info.color : 'rgba(255,255,255,0.12)',
-                            background: on ? `${info.color}22` : 'transparent'
-                          }}
-                        >
-                          {info.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <p className="text-[11px] text-white/45 leading-relaxed">
-                    {addNeedsSix
-                      ? 'Guitar and piano need the 6-source engine: the whole song will be split again from the saved audio (no re-upload).'
-                      : 'Instant if this stem was already computed; otherwise the song is split again from the saved audio (no re-upload).'}
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={confirmAddStems}
-                      disabled={addPick.size === 0}
-                      className="no-drag px-3 py-1.5 rounded-lg bg-violet-500/90 hover:bg-violet-500 text-white text-[12px] font-semibold disabled:opacity-40"
-                    >
-                      Add
-                    </button>
-                    <button
-                      onClick={() => {
-                        setAddOpen(false)
-                        setAddPick(new Set())
-                      }}
-                      className="no-drag px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/10 text-white/70 text-[12px]"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {addProgress && (
-                <div className="glass rounded-xl p-3 flex flex-col gap-2">
-                  <div className="flex items-center justify-between text-[12px] text-white/60">
-                    <span>{addProgress.message ?? 'Adding stems'}</span>
-                    <span className="tabular-nums">{Math.round(addProgress.pct)}%</span>
-                  </div>
-                  <div className="h-1 rounded-full bg-white/10 overflow-hidden">
-                    <div className="h-full bg-violet-400 transition-all" style={{ width: `${addProgress.pct}%` }} />
-                  </div>
-                  <button
-                    onClick={() => void window.stemkit.cancelJob(song.videoId)}
-                    className="no-drag self-start text-[11px] text-white/45 hover:text-white"
-                  >
-                    Cancel — keep current stems
-                  </button>
-                </div>
-              )}
-
-              {addError && (
-                <div className="rounded-xl bg-rose-500/10 border border-rose-400/20 px-3 py-2 text-xs text-rose-200 break-words">
-                  Could not add stems: {addError}
-                </div>
-              )}
             </aside>
           </div>
 
@@ -727,6 +657,109 @@ export function Player({ song, settings }: Props): React.ReactElement {
           </div>
         </div>
       </div>
+
+      {/* adicionar stem: janela própria (no quadro da música ela ficava cortada) */}
+      {createPortal(
+        <>
+      {addOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => {
+            setAddOpen(false)
+            setAddPick(new Set())
+          }}
+        >
+          <div
+            className="glass rounded-2xl p-6 w-[440px] max-w-[calc(100vw-32px)] flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <h3 className="text-[15px] font-semibold">Add stems</h3>
+              <p className="text-[12px] text-white/45 mt-1">{song.title}</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {missingStems.map((id) => {
+                const info = STEM_INFO[id]
+                const on = addPick.has(id)
+                return (
+                  <button
+                    key={id}
+                    onClick={() => toggleAddPick(id)}
+                    className="no-drag flex items-center gap-2 px-3.5 py-2 rounded-full text-[13px] font-semibold border transition-colors capitalize"
+                    style={{
+                      color: on ? info.color : 'rgba(255,255,255,0.6)',
+                      borderColor: on ? info.color : 'rgba(255,255,255,0.12)',
+                      background: on ? `${info.color}22` : 'transparent'
+                    }}
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ background: info.color }} />
+                    {info.label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[12px] text-white/50 leading-relaxed">
+              {addNeedsSix
+                ? 'Guitar and piano need the 6-source engine: the whole song will be split again from the saved audio. No re-upload needed.'
+                : 'Instant if the stem was already computed. Otherwise the song is split again from the saved audio. No re-upload needed.'}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setAddOpen(false)
+                  setAddPick(new Set())
+                }}
+                className="no-drag px-4 py-2 rounded-lg bg-white/[0.06] hover:bg-white/10 text-white/70 text-[13px]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAddStems}
+                disabled={addPick.size === 0}
+                className="no-drag px-4 py-2 rounded-lg bg-violet-500/90 hover:bg-violet-500 text-white text-[13px] font-semibold disabled:opacity-40"
+              >
+                Add {addPick.size > 0 ? addPick.size : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* progresso/erro: aviso fixo no canto, a música continua tocando */}
+      {(addProgress || addError) && (
+        <div className="fixed bottom-5 right-5 z-40 glass rounded-xl p-4 w-[320px] flex flex-col gap-2 shadow-2xl">
+          {addProgress ? (
+            <>
+              <div className="flex items-center justify-between text-[12px] text-white/70">
+                <span className="truncate">{addProgress.message ?? 'Adding stems'}</span>
+                <span className="tabular-nums ml-2">{Math.round(addProgress.pct)}%</span>
+              </div>
+              <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full bg-violet-400 transition-all" style={{ width: `${addProgress.pct}%` }} />
+              </div>
+              <button
+                onClick={() => void window.stemkit.cancelJob(song.videoId)}
+                className="no-drag self-start text-[11px] text-white/45 hover:text-white"
+              >
+                Cancel and keep current stems
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-[12px] text-rose-200 break-words">Could not add stems: {addError}</p>
+              <button
+                onClick={() => setAddError(null)}
+                className="no-drag self-start text-[11px] text-white/45 hover:text-white"
+              >
+                Dismiss
+              </button>
+            </>
+          )}
+        </div>
+      )}
+        </>,
+        document.body
+      )}
     </div>
   )
 }
