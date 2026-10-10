@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { StemId } from '../../../../shared/types'
 import { Knob } from './Knob'
+import { EqButton, type Eq } from './EqButton'
 
 const BUCKETS = 2400
 
@@ -42,6 +43,8 @@ interface Props {
   soloed: boolean
   volume: number
   pan: number
+  eq: Eq
+  onEq: (eq: Eq) => void
   onToggleMute: () => void
   onToggleSolo: () => void
   onVolume: (v: number) => void
@@ -60,6 +63,8 @@ export function TrackRow({
   soloed,
   volume,
   pan,
+  eq,
+  onEq,
   onToggleMute,
   onToggleSolo,
   onVolume,
@@ -121,6 +126,7 @@ export function TrackRow({
             <button onClick={onToggleSolo} title="Solo (S)" className={square(soloed, 'bg-amber-300 text-black')}>
               S
             </button>
+            <EqButton label={label} eq={eq} onChange={onEq} />
             <span
               className={`text-[12px] font-semibold leading-tight line-clamp-2 ${audible ? 'text-white' : 'text-white/40'}`}
               title={label}

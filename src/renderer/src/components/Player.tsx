@@ -12,6 +12,7 @@ import { Ruler } from './studio/Ruler'
 import { Playhead } from './studio/Playhead'
 import { TrackRow } from './studio/TrackRow'
 import { TransportBar } from './studio/TransportBar'
+import { FLAT_EQ, type Eq } from './studio/EqButton'
 import { SectionBar } from './SectionBar'
 
 export type ClickFactor = 0.5 | 1 | 2
@@ -94,6 +95,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   const [solos, setSolos] = useState<Set<StemId>>(new Set())
   const [master, setMaster] = useState(0.9)
   const [pans, setPans] = useState<Partial<Record<StemId, number>>>({})
+  const [eqs, setEqs] = useState<Partial<Record<StemId, Eq>>>({})
   const [showSections, setShowSections] = useState(true)
   const [loopA, setLoopA] = useState<number | null>(null)
   const [loopB, setLoopB] = useState<number | null>(null)
@@ -136,6 +138,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     setMutes(new Set())
     setSolos(new Set())
     setPans({})
+    setEqs({})
     setSpeed(1)
     setSemitones(0)
     setTuningHz(440)
@@ -207,6 +210,10 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   useEffect(() => {
     for (const [id, value] of Object.entries(pans)) engine.setPan(id as StemId, value ?? 0)
   }, [pans])
+
+  useEffect(() => {
+    for (const [id, eq] of Object.entries(eqs)) if (eq) engine.setEq(id as StemId, eq.low, eq.mid, eq.high)
+  }, [eqs])
 
   const outputSplit = !!settings?.outputSplit
   useEffect(() => {
@@ -784,6 +791,8 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
                     soloed={solos.has(meta.id)}
                     volume={vols[meta.id] ?? 1}
                     pan={pans[meta.id] ?? 0}
+                    eq={eqs[meta.id] ?? FLAT_EQ}
+                    onEq={(eq) => setEqs((prev) => ({ ...prev, [meta.id]: eq }))}
                     onToggleMute={() => toggleMute(meta.id)}
                     onToggleSolo={() => toggleSolo(meta.id)}
                     onVolume={(v) => setVols((prev) => ({ ...prev, [meta.id]: v }))}

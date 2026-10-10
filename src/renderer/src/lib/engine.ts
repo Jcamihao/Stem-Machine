@@ -63,6 +63,8 @@ export class StemEngine {
   private gains: Partial<Record<StemId, GainNode>> = {}
   // pan L/R por faixa: volume -> pan -> master
   private pans: Partial<Record<StemId, StereoPannerNode>> = {}
+  // EQ de 3 bandas por faixa (graves, médios, agudos): volume -> EQ -> pan
+  private eqs: Partial<Record<StemId, [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode]>> = {}
   private master: GainNode | null = null
   /* roteamento: cada faixa -> volume -> pan -> barramento de música ou de
      click/guia (cue). Música: velocidade nas próprias faixas (playbackRate,
@@ -218,12 +220,38 @@ export class StemEngine {
     if (!g) {
       g = ctx.createGain()
       const pan = ctx.createStereoPanner()
-      g.connect(pan)
+      const band = (type: BiquadFilterType, freq: number): BiquadFilterNode => {
+        const f = ctx.createBiquadFilter()
+        f.type = type
+        f.frequency.value = freq
+        f.gain.value = 0
+        return f
+      }
+      const eq: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode] = [
+        band('lowshelf', 200),
+        band('peaking', 1000),
+        band('highshelf', 6000)
+      ]
+      eq[1].Q.value = 0.8 // médios largos: soa musical, sem "buraco"
+      g.connect(eq[0])
+      eq[0].connect(eq[1])
+      eq[1].connect(eq[2])
+      eq[2].connect(pan)
       pan.connect(isCue(id) ? this.cueIn! : this.musicIn!)
       this.gains[id] = g
       this.pans[id] = pan
+      this.eqs[id] = eq
     }
     return g
+  }
+
+  // EQ em dB (−12 a +12) para graves, médios e agudos
+  setEq(id: StemId, low: number, mid: number, high: number): void {
+    this.getGain(id)
+    const eq = this.eqs[id]
+    if (!eq || !this.ctx) return
+    const now = this.ctx.currentTime
+    ;[low, mid, high].forEach((db, i) => eq[i].gain.setTargetAtTime(Math.max(-12, Math.min(12, db)), now, 0.015))
   }
 
   // -1 (esquerda) a 1 (direita)
