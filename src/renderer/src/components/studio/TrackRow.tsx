@@ -88,8 +88,8 @@ export function TrackRow({
       // linha central + onda espelhada, uma coluna por pixel
       ctx.fillStyle = colors.wave
       ctx.fillRect(0, h / 2 - 0.5, w, 1)
-      const visible = buffer && duration > 0 ? Math.min(1, buffer.duration / duration) : 1
-      const cols = Math.floor(w * visible)
+      // todas as faixas têm a mesma duração (mesmo esticadas pela velocidade)
+      const cols = w
       for (let x = 0; x < cols; x++) {
         const a = Math.floor((x / cols) * peaks.length)
         const b = Math.max(a + 1, Math.floor(((x + 1) / cols) * peaks.length))
@@ -103,7 +103,7 @@ export function TrackRow({
     const ro = new ResizeObserver(draw)
     ro.observe(canvas)
     return () => ro.disconnect()
-  }, [peaks, colors.wave, buffer, duration])
+  }, [peaks, colors.wave])
 
   const square = (on: boolean, onCls: string): string =>
     `no-drag w-4 h-4 rounded-[3px] text-[8px] font-bold flex items-center justify-center ${

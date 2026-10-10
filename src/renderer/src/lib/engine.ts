@@ -75,7 +75,10 @@ export class StemEngine {
   private loopA: number | null = null
   private loopB: number | null = null
   private loopOn = false
-  rate = 1
+  /* velocidade: os buffers vêm esticados pelo Rubber Band (duração = música /
+     speed), então tudo que é "tempo da música" (posição, loop, duração) é
+     convertido para o tempo do buffer dividindo por speed. O áudio toca em 1x */
+  speed = 1
 
   private ensureCtx(): AudioContext {
     if (!this.ctx) {
@@ -194,14 +197,13 @@ export class StemEngine {
       const gain = this.getGain(id)
       const src = ctx.createBufferSource()
       src.buffer = buf
-      src.playbackRate.value = this.rate
       if (this.looping()) {
         src.loop = true
-        src.loopStart = this.loopA!
-        src.loopEnd = Math.min(this.loopB!, buf.duration)
+        src.loopStart = this.loopA! / this.speed
+        src.loopEnd = Math.min(this.loopB! / this.speed, buf.duration)
       }
       src.connect(gain)
-      src.start(startAt, Math.min(Math.max(0, time), Math.max(0, buf.duration - 0.01)))
+      src.start(startAt, Math.min(Math.max(0, time / this.speed), Math.max(0, buf.duration - 0.01)))
       this.sources.push(src)
     }
     this.anchorCtx = startAt
@@ -209,19 +211,32 @@ export class StemEngine {
 
   expected(): number {
     if (!this.ctx || !this.playing) return this.anchorYt
-    const raw = this.anchorYt + (this.ctx.currentTime - this.anchorCtx) * this.rate
+    const raw = this.anchorYt + (this.ctx.currentTime - this.anchorCtx) * this.speed
     if (this.looping() && raw >= this.loopB!) {
       return this.loopA! + ((raw - this.loopA!) % (this.loopB! - this.loopA!))
     }
     return raw
   }
 
+  // duração no tempo da música (o buffer esticado dura música / speed)
   trackDuration(): number {
     let d = 0
     for (const buf of Object.values(this.buffers)) {
       if (buf && buf.duration > d) d = buf.duration
     }
-    return d
+    return d * this.speed
+  }
+
+  /* troca as faixas por outra versão (velocidade/tom) sem perder a posição: o
+     tempo da música continua o mesmo, só muda o fator de conversão */
+  setVariant(buffers: BufferMap, speed: number): void {
+    const t = this.expected()
+    const wasPlaying = this.playing
+    this.stopSources()
+    this.buffers = { ...buffers }
+    this.speed = speed
+    this.playing = wasPlaying
+    this.align(t)
   }
 
   applyMix(

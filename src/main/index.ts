@@ -34,6 +34,7 @@ import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUD
 import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addStems, analyzeSections } from './pipeline'
 import { initUpdater } from './updater'
 import { guideClips } from './voice'
+import { variantBuffers } from './variants'
 import { runSmoke } from './smoke'
 import { getThumb, clearThumbMemo } from './thumbs'
 
@@ -263,6 +264,12 @@ app.whenReady().then(async () => {
     writeFileSync(join(stemsDir(videoId), `${stem}.wav`), Buffer.from(wav))
   })
   ipcMain.handle('voice:clips', () => guideClips())
+  ipcMain.handle('variant:buffers', (_e, videoId: string, speed: number, semitones: number) => {
+    if (!inLibrary(videoId)) throw new Error('Song not found')
+    const s = Math.max(0.5, Math.min(1.5, Number(speed) || 1))
+    const t = Math.max(-12, Math.min(12, Math.round(Number(semitones) || 0)))
+    return variantBuffers(videoId, s, t)
+  })
   ipcMain.handle('stems:add', (_e, videoId: string, stems: string[]) => {
     void addStems(videoId, stems)
   })

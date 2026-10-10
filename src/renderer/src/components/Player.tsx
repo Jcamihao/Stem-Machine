@@ -108,6 +108,12 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   const [sectionsBusy, setSectionsBusy] = useState(false)
   const [sectionsError, setSectionsError] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
+  // velocidade (0.5–1.5) e tom (semitons) — processados com Rubber Band no main
+  const [speed, setSpeed] = useState(1)
+  const [semitones, setSemitones] = useState(0)
+  const [variantProgress, setVariantProgress] = useState<{ done: number; total: number } | null>(null)
+  const [variantError, setVariantError] = useState<string | null>(null)
+  const appliedVariantRef = useRef('1|0')
   const [addPick, setAddPick] = useState<Set<StemId>>(new Set())
   const [addProgress, setAddProgress] = useState<{ pct: number; message?: string } | null>(null)
   const [addError, setAddError] = useState<string | null>(null)
@@ -132,6 +138,12 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     setMutes(new Set())
     setSolos(new Set())
     setPans({})
+    setSpeed(1)
+    setSemitones(0)
+    setVariantProgress(null)
+    setVariantError(null)
+    appliedVariantRef.current = '1|0'
+    engine.speed = 1
     setLoopA(null)
     setLoopB(null)
     setLoopOn(false)
@@ -218,6 +230,52 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     [song.videoId]
   )
 
+  const buffersKey = Object.entries(buffers)
+    .filter(([id]) => !GENERATED.includes(id as StemId))
+    .map(([id, b]) => `${id}:${b?.length ?? 0}`)
+    .join('|')
+
+  /* troca de velocidade/tom: espera ~0,7s sem mexer e carrega a versão
+     processada (ou a original, em 100% / 0). A posição na música não muda */
+  useEffect(() => {
+    if (decoding) return
+    const key = `${speed}|${semitones}`
+    if (key === appliedVariantRef.current) return
+    let cancelled = false
+    const timer = setTimeout(() => {
+      setVariantError(null)
+      const load =
+        speed === 1 && semitones === 0
+          ? getDecoded(song)
+          : window.stemkit.getVariantBuffers(song.videoId, speed, semitones).then(decodePayload)
+      load
+        .then((decoded) => {
+          if (cancelled) return
+          appliedVariantRef.current = key
+          engine.setVariant(decoded, speed)
+          setBuffers(decoded)
+        })
+        .catch((err) => {
+          if (!cancelled) setVariantError(err instanceof Error ? err.message : String(err))
+        })
+        .finally(() => {
+          if (!cancelled) setVariantProgress(null)
+        })
+    }, 700)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [speed, semitones, decoding, song])
+
+  useEffect(
+    () =>
+      window.stemkit.onVariantProgress((p) => {
+        if (p.videoId === song.videoId) setVariantProgress(p.done < p.total ? { done: p.done, total: p.total } : null)
+      }),
+    [song.videoId]
+  )
+
   // click como stem: gerado das batidas (com ½×/2×) depois que os stems carregam
   useEffect(() => {
     if (decoding) return
@@ -238,12 +296,17 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     )
     if (stemDuration <= 0) return
     const grid = applyFactor(beats, clickFactor)
-    const click = renderClick(grid.beats, grid.downbeats, stemDuration)
+    // faixas esticadas pela velocidade: as batidas vão para o tempo do buffer
+    const click = renderClick(
+      grid.beats.map((t) => t / speed),
+      grid.downbeats.map((t) => t / speed),
+      stemDuration
+    )
     engine.setStemBuffer('click', click)
     setBuffers((prev) => ({ ...prev, click }))
     setVols((prev) => ('click' in prev ? prev : { ...prev, click: 1 }))
     // buffers fica fora das dependências: o próprio click mudaria buffers e geraria de novo
-  }, [beats, clickFactor, decoding])
+  }, [beats, clickFactor, decoding, speed, buffersKey])
 
   // guia de voz como stem: precisa das batidas e das seções
   const [guideError, setGuideError] = useState<string | null>(null)
@@ -271,7 +334,15 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     loadGuideClips()
       .then((clips) => {
         if (cancelled) return
-        const guide = renderGuide(list, beats, clips, stemDuration)
+        // na velocidade escolhida: seções e batidas no tempo do buffer; a voz fica natural
+        const scaledGrid = {
+          ...beats,
+          bpm: beats.bpm * speed,
+          beats: beats.beats.map((t) => t / speed),
+          downbeats: beats.downbeats.map((t) => t / speed)
+        }
+        const scaledSections = list.map((x) => ({ ...x, start: x.start / speed, end: x.end / speed }))
+        const guide = renderGuide(scaledSections, scaledGrid, clips, stemDuration)
         engine.setStemBuffer('guide', guide)
         setBuffers((prev) => ({ ...prev, guide }))
         setVols((prev) => ('guide' in prev ? prev : { ...prev, guide: 1 }))
@@ -282,7 +353,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     return () => {
       cancelled = true
     }
-  }, [beats, sections, decoding])
+  }, [beats, sections, decoding, speed, buffersKey])
 
   useEffect(() => {
     if (!playing) return
@@ -657,6 +728,8 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   ]
   const notices = [
     flash,
+    variantProgress && `Processando velocidade/tom… ${variantProgress.done}/${variantProgress.total} faixas`,
+    variantError && `Velocidade/tom: ${variantError}`,
     analyzing && 'Detectando batidas…',
     sectionsBusy && 'Detectando seções…',
     clickError && `Metrônomo: ${clickError}`,
@@ -673,7 +746,11 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
         onBack={onBack}
         canAddStems={missingStems.length > 0 && !decoding && !addProgress}
         onAddStems={() => setAddOpen(true)}
-        bpm={beats ? beats.bpm * clickFactor : null}
+        bpm={beats ? beats.bpm * clickFactor * speed : null}
+        speed={speed}
+        onSpeed={setSpeed}
+        semitones={semitones}
+        onSemitones={setSemitones}
         beatsPerBar={beats?.beatsPerBar ?? null}
         exportItems={exportItems}
         menuItems={menuItems}
