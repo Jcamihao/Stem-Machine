@@ -710,8 +710,14 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
         baseBpm={beats ? beats.bpm * clickFactor : null}
         speed={speed}
         onSpeed={setSpeed}
+        onBpmStep={(d) => {
+          // 1 BPM por clique, velocidade entre 50% e 150%
+          const base = beats ? beats.bpm * clickFactor : 0
+          if (base > 0) setSpeed((prev) => Math.max(0.5, Math.min(1.5, (Math.round(base * prev) + d) / base)))
+        }}
         semitones={semitones}
         onSemitones={setSemitones}
+        onSemitoneStep={(d) => setSemitones((prev) => Math.max(-12, Math.min(12, prev + d)))}
         tuningHz={tuningHz}
         onTuning={setTuningHz}
         beatsPerBar={beats?.beatsPerBar ?? null}

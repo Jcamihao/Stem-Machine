@@ -108,8 +108,10 @@ interface Props {
   beatsPerBar: number | null
   speed: number
   onSpeed: (v: number) => void
+  onBpmStep: (delta: number) => void // soma ao valor mais recente (cliques rápidos não se perdem)
   semitones: number
   onSemitones: (v: number) => void
+  onSemitoneStep: (delta: number) => void
   tuningHz: number
   onTuning: (hz: number) => void
   exportItems: MenuItem[]
@@ -148,8 +150,8 @@ export function StudioHeader(p: Props): React.ReactElement {
               <Stepper
                 value={String(Math.round(p.baseBpm * p.speed))}
                 // 1 BPM por clique; a velocidade fica entre 50% e 150% da original
-                onMinus={() => p.onSpeed(Math.max(0.5, (Math.round(p.baseBpm! * p.speed) - 1) / p.baseBpm!))}
-                onPlus={() => p.onSpeed(Math.min(1.5, (Math.round(p.baseBpm! * p.speed) + 1) / p.baseBpm!))}
+                onMinus={() => p.onBpmStep(-1)}
+                onPlus={() => p.onBpmStep(1)}
               />
             </>
           ) : (
@@ -186,8 +188,8 @@ export function StudioHeader(p: Props): React.ReactElement {
           <Stepper
             // o tom da música ainda não é detectado: mostra a transposição
             value={p.semitones === 0 ? 'Original' : `${p.semitones > 0 ? '+' : ''}${p.semitones}`}
-            onMinus={() => p.onSemitones(Math.max(-12, p.semitones - 1))}
-            onPlus={() => p.onSemitones(Math.min(12, p.semitones + 1))}
+            onMinus={() => p.onSemitoneStep(-1)}
+            onPlus={() => p.onSemitoneStep(1)}
           />
           <button
             onClick={() => {
