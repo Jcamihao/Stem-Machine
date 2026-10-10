@@ -44,7 +44,7 @@ export function ChordStrip({ chords, duration, shift, onSeek, onEdit }: StripPro
             className="no-drag absolute top-0 h-full px-1 text-left text-[11px] font-bold text-white/85 hover:text-white truncate border-l border-white/25"
             style={{ left: `${pct(c.start)}%`, width: `${pct(c.end) - pct(c.start)}%` }}
           >
-            {duration > 0 && ((c.end - c.start) / duration) * width >= name.length * 7 + 6 ? name : ''}
+            {duration > 0 && ((c.end - c.start) / duration) * width >= name.length * 7.5 + 14 ? name : ''}
           </button>
         )
       })}
