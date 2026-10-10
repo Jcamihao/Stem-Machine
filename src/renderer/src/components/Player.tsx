@@ -10,7 +10,7 @@ import { buildStemMeta, STEM_INFO } from '../lib/stems'
 import { StudioHeader, type MenuItem } from './studio/StudioHeader'
 import { Ruler } from './studio/Ruler'
 import { Playhead } from './studio/Playhead'
-import { TrackRow } from './studio/TrackRow'
+import { TrackRow, HEADER_W } from './studio/TrackRow'
 import { TransportBar } from './studio/TransportBar'
 import { FLAT_EQ, type Eq } from './studio/EqButton'
 import { SectionBar } from './SectionBar'
@@ -737,7 +737,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
         <div className="relative pr-3">
           {showSections && sections && sections.sections.length > 0 && (
             <div className="flex">
-              <div className="w-[214px] shrink-0" />
+              <div className="shrink-0" style={{ width: HEADER_W }} />
               <div className="flex-1 min-w-0">
                 <SectionBar
                   sections={sections.sections}
@@ -752,7 +752,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
             </div>
           )}
           <div className="flex mb-3">
-            <div className="w-[214px] shrink-0" />
+            <div className="shrink-0" style={{ width: HEADER_W }} />
             <div className="flex-1 min-w-0">
               <Ruler
                 duration={duration}
@@ -775,7 +775,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
             {decoding
               ? [...Array(5)].map((_, i) => (
                   <div key={i} className="flex h-16">
-                    <div className="w-[214px] shrink-0" />
+                    <div className="shrink-0" style={{ width: HEADER_W }} />
                     <div className="flex-1 rounded-md bg-white/[0.06] animate-pulse" style={{ animationDelay: `${i * 120}ms` }} />
                   </div>
                 ))
@@ -819,7 +819,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
                 ))}
           </div>
 
-          <div className="absolute top-0 bottom-0 left-[214px] right-3 pointer-events-none">
+          <div className="absolute top-0 bottom-0 right-3 pointer-events-none" style={{ left: HEADER_W }}>
             <Playhead duration={duration} getPosition={getPosition} />
           </div>
         </div>

@@ -23,6 +23,10 @@ function computePeaks(buffer: AudioBuffer): Float32Array {
   return out
 }
 
+// largura da coluna de controles (M/S/EQ, nome, volume, pan); régua, seções e
+// agulha usam a mesma medida para ficarem alinhadas com as faixas
+export const HEADER_W = 300
+
 // cores da faixa: azul para os instrumentos, ciano para "outro", verde para o
 // metrônomo, laranja para a guia; cinza quando a faixa está calada
 export function laneColors(id: StemId, audible: boolean): { lane: string; wave: string } {
@@ -117,7 +121,7 @@ export function TrackRow({
 
   return (
     <div className="flex items-stretch h-16">
-      <div className="w-[214px] shrink-0 flex items-center gap-2 pl-5 pr-3">
+      <div className="shrink-0 flex items-center gap-3 pl-5 pr-4" style={{ width: HEADER_W }}>
         <div className="flex-1 min-w-0 flex flex-col gap-1.5">
           <div className="flex items-center gap-1.5">
             <button onClick={onToggleMute} title="Mudo (M)" className={square(muted, 'bg-rose-400 text-black')}>
@@ -141,7 +145,7 @@ export function TrackRow({
             step={0.01}
             value={volume}
             onChange={(e) => onVolume(parseFloat(e.target.value))}
-            className="no-drag studio-volume w-[132px]"
+            className="no-drag studio-volume w-full"
             style={{
               background: `linear-gradient(to right, #14b8a6 ${volume * 100}%, rgba(255,255,255,0.18) ${volume * 100}%)`
             }}
