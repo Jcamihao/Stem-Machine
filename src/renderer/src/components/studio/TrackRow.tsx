@@ -46,6 +46,7 @@ interface Props {
   muted: boolean
   soloed: boolean
   volume: number
+  maxVolume?: number // metrônomo e guia vão até 2 (200%)
   pan: number
   eq: Eq
   onEq: (eq: Eq) => void
@@ -66,6 +67,7 @@ export function TrackRow({
   muted,
   soloed,
   volume,
+  maxVolume = 1,
   pan,
   eq,
   onEq,
@@ -141,13 +143,14 @@ export function TrackRow({
           <input
             type="range"
             min={0}
-            max={1}
+            max={maxVolume}
             step={0.01}
             value={volume}
             onChange={(e) => onVolume(parseFloat(e.target.value))}
+            title={`Volume ${Math.round(volume * 100)}%`}
             className="no-drag studio-volume w-full"
             style={{
-              background: `linear-gradient(to right, #14b8a6 ${volume * 100}%, rgba(255,255,255,0.18) ${volume * 100}%)`
+              background: `linear-gradient(to right, #14b8a6 ${(volume / maxVolume) * 100}%, rgba(255,255,255,0.18) ${(volume / maxVolume) * 100}%)`
             }}
           />
         </div>

@@ -17,10 +17,19 @@ export async function decodeGuideClips(raw: Record<string, Uint8Array>): Promise
     while (a < b && Math.abs(data[a]) < 0.01) a++
     while (b > a && Math.abs(data[b]) < 0.01) b--
     const clip = data.slice(a, b + 1)
+    // fala do TTS é "pontuda" (picos altos, corpo fraco) e somia no meio da música:
+    // saturação suave (tanh) sobe o volume médio ~6dB sem estourar o pico
+    const DRIVE = 3
     let peak = 0
     for (const v of clip) peak = Math.max(peak, Math.abs(v))
-    const gain = peak > 0 ? 0.9 / peak : 1
-    for (let i = 0; i < clip.length; i++) clip[i] *= gain
+    const pre = peak > 0 ? 0.9 / peak : 1
+    let peak2 = 0
+    for (let i = 0; i < clip.length; i++) {
+      clip[i] = Math.tanh(DRIVE * clip[i] * pre) / Math.tanh(DRIVE)
+      peak2 = Math.max(peak2, Math.abs(clip[i]))
+    }
+    const post = peak2 > 0 ? 0.95 / peak2 : 1
+    for (let i = 0; i < clip.length; i++) clip[i] *= post
     out[key] = clip
   }
   return out
@@ -124,7 +133,7 @@ export function renderGuide(
     place(clips[section.label], call, 1, grid.beats[i - perBar] - call - 0.05)
     for (let k = 0; k < perBar && k < 4; k++) {
       const t = grid.beats[i - perBar + k]
-      place(clips[`c${k + 1}`], t, 0.85, beat * 0.9)
+      place(clips[`c${k + 1}`], t, 1, beat * 0.9)
     }
   }
   return out

@@ -790,6 +790,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
                     muted={mutes.has(meta.id)}
                     soloed={solos.has(meta.id)}
                     volume={vols[meta.id] ?? 1}
+                    maxVolume={meta.id === 'click' || meta.id === 'guide' ? 2 : 1}
                     pan={pans[meta.id] ?? 0}
                     eq={eqs[meta.id] ?? FLAT_EQ}
                     onEq={(eq) => setEqs((prev) => ({ ...prev, [meta.id]: eq }))}
