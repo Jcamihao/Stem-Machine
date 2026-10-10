@@ -12,7 +12,7 @@ import { existsSync, copyFileSync, mkdirSync, createReadStream, statSync, writeF
 import { spawn } from 'child_process'
 import { createServer, type Server } from 'http'
 import type { AddressInfo } from 'net'
-import type { AppSettings, BeatGrid, SectionMap } from '../shared/types'
+import type { AppSettings, BeatGrid, ChordMap, SectionMap } from '../shared/types'
 import {
   detectTools,
   bootstrap,
@@ -30,8 +30,8 @@ import {
   getStatus
 } from './env'
 import { loadSettings, saveSettings } from './settings'
-import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUDIO_EXTENSIONS, loadBeats, saveBeats, loadSections, saveSections } from './library'
-import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addStems, analyzeSections } from './pipeline'
+import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUDIO_EXTENSIONS, loadBeats, saveBeats, loadSections, saveSections, loadChords, saveChords } from './library'
+import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addStems, analyzeSections, analyzeChords } from './pipeline'
 import { initUpdater } from './updater'
 import { guideClips } from './voice'
 import { runSmoke } from './smoke'
@@ -267,6 +267,15 @@ app.whenReady().then(async () => {
     void addStems(videoId, stems)
   })
   ipcMain.handle('song:sections', (_e, videoId: string) => (inLibrary(videoId) ? loadSections(videoId) : null))
+  ipcMain.handle('song:chords', (_e, videoId: string) => (inLibrary(videoId) ? loadChords(videoId) : null))
+  ipcMain.handle('chords:analyze', async (_e, videoId: string) => {
+    if (!inLibrary(videoId)) throw new Error('Song not found')
+    return analyzeChords(videoId)
+  })
+  ipcMain.handle('chords:save', (_e, videoId: string, map: ChordMap) => {
+    if (!inLibrary(videoId)) throw new Error('Song not found')
+    saveChords(videoId, map)
+  })
   ipcMain.handle('sections:analyze', async (_e, videoId: string) => {
     if (!inLibrary(videoId)) throw new Error('Song not found')
     return analyzeSections(videoId)

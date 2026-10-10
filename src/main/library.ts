@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync, rmSync, mkdirSync, openSync, r
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { userDataDir } from './env'
-import { DEFAULT_STEMS, type BeatGrid, type SectionMap, type Song } from '../shared/types'
+import { DEFAULT_STEMS, type BeatGrid, type ChordMap, type SectionMap, type Song } from '../shared/types'
 
 // drives both the file-dialog filter and the pre-flight extension check in
 // startLocalJob; anything here is fair game for ffmpeg to decode
@@ -62,6 +62,24 @@ export function loadSections(videoId: string): SectionMap | null {
 
 export function saveSections(videoId: string, map: SectionMap): void {
   writeFileSync(sectionsPath(videoId), JSON.stringify(map))
+}
+
+// acordes detectados (python/chords.py), com as correções do usuário
+export function chordsPath(videoId: string): string {
+  return join(songDir(videoId), 'chords.json')
+}
+
+export function loadChords(videoId: string): ChordMap | null {
+  try {
+    const data = JSON.parse(readFileSync(chordsPath(videoId), 'utf8'))
+    return Array.isArray(data.chords) ? data : null
+  } catch {
+    return null
+  }
+}
+
+export function saveChords(videoId: string, map: ChordMap): void {
+  writeFileSync(chordsPath(videoId), JSON.stringify(map))
 }
 
 export function loadBeats(videoId: string): BeatGrid | null {

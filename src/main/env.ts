@@ -195,6 +195,76 @@ export function ensureSectionsEngine(): Promise<boolean> {
   return sectionsEnginePromise
 }
 
+export function chordsScript(): string {
+  if (app.isPackaged) {
+    return join(process.resourcesPath, 'python', 'chords.py')
+  }
+  return join(app.getAppPath(), 'python', 'chords.py')
+}
+
+/* acordes: rede da music-x-lab (MIT, código em python/vendor/chordrec). Precisa do
+   librosa (CQT), instalado numa pasta própria; scipy/soundfile vêm da pasta das
+   seções. Versões fixas testadas com o Python 3.11 / numpy 1.26 do app. Os pesos
+   (~28MB) o próprio chords.py baixa para a pasta de modelos */
+const CHORDS_PKGS = [
+  'librosa==0.11.0',
+  'numba==0.60.0',
+  'llvmlite==0.43.0',
+  'audioread',
+  'decorator',
+  'joblib',
+  'lazy_loader',
+  'msgpack',
+  'pooch',
+  'platformdirs'
+]
+
+export function chordsLibDir(): string {
+  return join(userDataDir(), 'chords-lib')
+}
+
+export function chordsModelsDir(): string {
+  return join(modelsDir(), 'chords')
+}
+
+let chordsEnginePromise: Promise<boolean> | null = null
+
+export function ensureChordsEngine(): Promise<boolean> {
+  const marker = join(chordsLibDir(), '.ready')
+  if (existsSync(marker)) return ensureSectionsEngine()
+  if (!chordsEnginePromise) {
+    chordsEnginePromise = (async () => {
+      if (!(await ensureSectionsEngine())) throw new Error('sections engine unavailable')
+      sendEnvEvent('Installing the chords engine…')
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn(
+          venvPython(),
+          ['-m', 'pip', 'install', '-q', '--no-deps', '--upgrade', '--target', chordsLibDir(), ...CHORDS_PKGS],
+          { env: { ...process.env } }
+        )
+        child.on('close', (code) =>
+          code === 0 ? resolve() : reject(new Error(`pip install failed (${code})`))
+        )
+        child.on('error', reject)
+      })
+      writeFileSync(marker, CHORDS_PKGS.join('\n'))
+      sendEnvEvent('Chords engine ready', 'success')
+      return true
+    })()
+      .catch((err) => {
+        sendEnvEvent(
+          `Chords engine failed: ${err instanceof Error ? err.message : String(err)}`,
+          'error'
+        )
+        return false
+      })
+      .finally(() => {
+        chordsEnginePromise = null
+      })
+  }
+  return chordsEnginePromise
+}
+
 /* click inteligente: detector de batidas beat_this (JKU Linz, licença MIT).
    O venv já tem torch/torchaudio/einops; faltam só ele e o soxr. --no-deps
    para nunca trocar o torch que o app escolheu (CPU, CUDA ou ROCm). O modelo

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { AppSettings, BeatGrid, Section, SectionMap, Song, StemId } from '../../../shared/types'
+import type { AppSettings, BeatGrid, ChordMap, Section, SectionMap, Song, StemId } from '../../../shared/types'
 import { engine, decodePayload, isAudible, renderClick, type BufferMap } from '../lib/engine'
 import { encodeWav } from '../lib/wav'
 import { decodeGuideClips, renderGuide, type GuideClips } from '../lib/guide'
@@ -14,6 +14,8 @@ import { TrackRow, HEADER_W } from './studio/TrackRow'
 import { TransportBar } from './studio/TransportBar'
 import { FLAT_EQ, type Eq } from './studio/EqButton'
 import { SectionBar } from './SectionBar'
+import { ChordNow, ChordStrip } from './studio/ChordStrip'
+import { formatChord } from '../lib/chords'
 
 export type ClickFactor = 0.5 | 1 | 2
 
@@ -105,8 +107,12 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   const [analyzing, setAnalyzing] = useState(false)
   const [clickError, setClickError] = useState<string | null>(null)
   const [sections, setSections] = useState<SectionMap | null>(null)
-  // já sabemos se a música tem batidas/seções salvas (para detectar sozinho se não tiver)
-  const [checked, setChecked] = useState({ beats: false, sections: false })
+  const [chords, setChords] = useState<ChordMap | null>(null)
+  const [chordsBusy, setChordsBusy] = useState(false)
+  const [chordsError, setChordsError] = useState<string | null>(null)
+  const [showChords, setShowChords] = useState(true)
+  // já sabemos se a música tem batidas/seções/acordes salvos (para detectar sozinho se não tiver)
+  const [checked, setChecked] = useState({ beats: false, sections: false, chords: false })
   const [sectionsBusy, setSectionsBusy] = useState(false)
   const [sectionsError, setSectionsError] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
@@ -156,7 +162,15 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     setAnalyzing(false)
 
     let cancelled = false
-    setChecked({ beats: false, sections: false })
+    setChecked({ beats: false, sections: false, chords: false })
+    setChords(null)
+    setChordsError(null)
+    setChordsBusy(false)
+    void window.stemkit.getChords(song.videoId).then((map) => {
+      if (cancelled) return
+      setChords(map)
+      setChecked((c) => ({ ...c, chords: true }))
+    })
     void window.stemkit.getBeats(song.videoId).then((grid) => {
       if (cancelled) return
       setBeats(grid)
@@ -457,7 +471,10 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   // o mapa como editado; a guia se refaz sozinha porque depende de `sections`
   // desfazer/refazer das correções: guarda só o que cada ação mudou (as batidas
   // no "marcar o 1", as seções nas edições), como estava antes
-  type Snapshot = { kind: 'beats'; value: BeatGrid } | { kind: 'sections'; value: SectionMap }
+  type Snapshot =
+    | { kind: 'beats'; value: BeatGrid }
+    | { kind: 'sections'; value: SectionMap }
+    | { kind: 'chords'; value: ChordMap }
   const undoRef = useRef<Snapshot[]>([])
   const redoRef = useRef<Snapshot[]>([])
   const remember = (snap: Snapshot): void => {
@@ -507,6 +524,11 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
       setBeats(snap.value)
       void window.stemkit.saveBeats(song.videoId, snap.value)
       setFlash(`${label}: marcação do 1`)
+    } else if (snap.kind === 'chords') {
+      if (chords) to.current = [...to.current, { kind: 'chords', value: chords }]
+      setChords(snap.value)
+      void window.stemkit.saveChords(song.videoId, snap.value)
+      setFlash(`${label}: correção de acorde`)
     } else {
       if (sections) to.current = [...to.current, { kind: 'sections', value: sections }]
       setSections(snap.value)
@@ -516,6 +538,38 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   }
   const undo = (): void => restore(undoRef, redoRef, 'Desfeito')
   const redo = (): void => restore(redoRef, undoRef, 'Refeito')
+
+  /* correção de acorde: o texto vem no tom que se ouve agora (com a transposição);
+     é guardado no tom original, para continuar certo se mudar a transposição */
+  const editChord = (index: number, text: string | null): void => {
+    if (!chords) return
+    remember({ kind: 'chords', value: chords })
+    const label = text === null ? 'N' : `txt:${formatChord(`txt:${text}`, -semitones)}`
+    const map: ChordMap = {
+      ...chords,
+      edited: true,
+      chords: chords.chords.map((c, i) => (i === index ? { ...c, label } : c))
+    }
+    setChords(map)
+    void window.stemkit.saveChords(song.videoId, map)
+  }
+
+  const analyzeChords = useCallback((): void => {
+    setChordsBusy(true)
+    setChordsError(null)
+    const videoId = song.videoId
+    window.stemkit
+      .analyzeChords(videoId)
+      .then((map) => {
+        if (videoId === songIdRef.current) setChords(map)
+      })
+      .catch((err) => {
+        if (videoId === songIdRef.current) setChordsError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (videoId === songIdRef.current) setChordsBusy(false)
+      })
+  }, [song.videoId])
 
   const loopSection = useCallback(
     (index: number): void => {
@@ -533,6 +587,9 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   useEffect(() => {
     if (checked.sections && !sections && !sectionsBusy && !sectionsError) analyzeSections()
   }, [checked.sections])
+  useEffect(() => {
+    if (checked.chords && !chords && beats && !chordsBusy && !chordsError) analyzeChords()
+  }, [checked.chords, beats])
 
   const scrubRef = useRef<number | null>(null)
   const getPosition = useCallback((): number => {
@@ -694,12 +751,19 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     { label: 'Refazer (Ctrl+Shift+Z)', onClick: redo },
     { label: 'Marcar o 1 aqui (tecla 1)', onClick: () => markOne(false), disabled: !beats },
     { label: 'Marcar o 1 aqui, música toda (Shift+1)', onClick: () => markOne(true), disabled: !beats },
+    {
+      label: chords ? 'Detectar acordes de novo' : 'Detectar acordes',
+      onClick: analyzeChords,
+      disabled: chordsBusy
+    },
     ...(loopA !== null || loopB !== null ? [{ label: 'Limpar loop', onClick: clearLoop }] : [])
   ]
   const notices = [
     flash,
     analyzing && 'Detectando batidas…',
     sectionsBusy && 'Detectando seções…',
+    chordsBusy && 'Detectando acordes…',
+    chordsError && `Acordes: ${chordsError}`,
     clickError && `Metrônomo: ${clickError}`,
     sectionsError && `Seções: ${sectionsError}`,
     guideError && `Guia: ${guideError}`,
@@ -735,6 +799,14 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="relative pr-3">
+          {showChords && chords && chords.chords.length > 0 && (
+            <div className="flex">
+              <div className="shrink-0" style={{ width: HEADER_W }} />
+              <div className="flex-1 min-w-0">
+                <ChordStrip chords={chords.chords} duration={duration} shift={semitones} onSeek={seekTo} onEdit={editChord} />
+              </div>
+            </div>
+          )}
           {showSections && sections && sections.sections.length > 0 && (
             <div className="flex">
               <div className="shrink-0" style={{ width: HEADER_W }} />
@@ -850,6 +922,14 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
         onToggleSections={() => setShowSections((v) => !v)}
         loopMode={loopMode}
         onToggleLoopMode={() => setLoopMode((v) => !v)}
+        chordsAvailable={!!chords && chords.chords.length > 0}
+        showChords={showChords}
+        onToggleChords={() => setShowChords((v) => !v)}
+        leftSlot={
+          showChords && chords && chords.chords.length > 0 ? (
+            <ChordNow chords={chords.chords} shift={semitones} getPosition={getPosition} />
+          ) : undefined
+        }
       />
 
       {notices.length > 0 && (

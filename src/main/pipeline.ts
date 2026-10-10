@@ -22,7 +22,11 @@ import {
   sectionsScript,
   sectionsLibDir,
   sectionsModelsDir,
-  ensureSectionsEngine
+  ensureSectionsEngine,
+  chordsScript,
+  chordsLibDir,
+  chordsModelsDir,
+  ensureChordsEngine
 } from './env'
 import { loadSettings } from './settings'
 import {
@@ -40,9 +44,11 @@ import {
   loadBeats,
   replaceSong,
   sectionsPath,
-  loadSections
+  loadSections,
+  chordsPath,
+  loadChords
 } from './library'
-import type { BeatGrid, JobEvent, JobStage, SectionMap } from '../shared/types'
+import type { BeatGrid, ChordMap, JobEvent, JobStage, SectionMap } from '../shared/types'
 import { MODEL_DEFAULT, MODEL_EXTENDED } from '../shared/types'
 import { parseVideoId } from '../shared/url'
 import { localSongId } from '../shared/local'
@@ -269,6 +275,38 @@ async function detectSections(job: ActiveJob): Promise<void> {
   }
 }
 
+function chordsArgs(videoId: string): string[] {
+  return [
+    chordsScript(),
+    '--input',
+    mixWavPath(videoId),
+    '--out',
+    chordsPath(videoId),
+    '--models',
+    chordsModelsDir(),
+    '--lib',
+    chordsLibDir(),
+    '--lib',
+    sectionsLibDir(),
+    // as trocas de acorde caem nas batidas do metrônomo (de preferência no "1")
+    '--beats',
+    beatsPath(videoId)
+  ]
+}
+
+/* acordes logo depois das seções. Não é fatal: sem eles a música entra na
+   biblioteca e o player detecta ao abrir */
+async function detectChords(job: ActiveJob): Promise<void> {
+  if (!(await ensureChordsEngine())) return
+  if (job.cancelled || !jobs.has(job.videoId)) throw new Error('cancelled')
+  progress(job, 'finalize', 0, 'Detecting chords')
+  try {
+    await runProcess(job, venvPython(), chordsArgs(job.videoId))
+  } catch (err) {
+    if (err instanceof Error && err.message === 'cancelled') throw err
+  }
+}
+
 // roda um script python fora de um job; a mensagem de erro vem do evento JSON dele
 function runScript(args: string[]): Promise<void> {
   return new Promise<void>((resolve, reject) => {
@@ -311,6 +349,17 @@ export function analyzeBeats(videoId: string): Promise<BeatGrid> {
     const grid = loadBeats(videoId)
     if (!grid) throw new Error('Beat detection produced no result')
     return grid
+  })
+}
+
+export function analyzeChords(videoId: string): Promise<ChordMap> {
+  return once(`chords:${videoId}`, async () => {
+    if (!existsSync(mixWavPath(videoId))) throw new Error('Original audio not found for this song')
+    if (!(await ensureChordsEngine())) throw new Error('Chords engine unavailable')
+    await runScript(chordsArgs(videoId))
+    const map = loadChords(videoId)
+    if (!map) throw new Error('Chord detection produced no result')
+    return map
   })
 }
 
@@ -500,6 +549,7 @@ export async function startJob(
     if (job.cancelled || !jobs.has(videoId)) return
     await detectBeats(job)
     await detectSections(job)
+    await detectChords(job)
     finalizeJob(job, { title: meta!.title, duration: meta!.duration, addedAt, startedAt }, producedStems)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -567,6 +617,7 @@ export async function startLocalJob(
     if (job.cancelled || !jobs.has(videoId)) return
     await detectBeats(job)
     await detectSections(job)
+    await detectChords(job)
     finalizeJob(job, { title, duration, addedAt, startedAt, source: 'local' }, producedStems)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

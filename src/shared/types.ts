@@ -105,6 +105,20 @@ export interface SectionMap {
   edited?: boolean
 }
 
+// acordes detectados (python/chords.py); label no formato "E:maj/3", "C#:min7"; "N" = sem acorde.
+// Editado à mão: "txt:Gm7" (texto livre digitado pelo usuário)
+export interface ChordSegment {
+  start: number
+  end: number
+  label: string
+}
+
+export interface ChordMap {
+  version: number
+  chords: ChordSegment[]
+  edited?: boolean
+}
+
 export type JobStage = 'metadata' | 'download' | 'convert' | 'separate' | 'finalize'
 
 export interface JobProgress {
@@ -162,6 +176,9 @@ export interface StemKitApi {
   addStems(videoId: string, stems: string[]): Promise<void>
   getSections(videoId: string): Promise<SectionMap | null>
   libraryMeta(): Promise<Record<string, { bpm: number | null }>>
+  getChords(videoId: string): Promise<ChordMap | null>
+  analyzeChords(videoId: string): Promise<ChordMap>
+  saveChords(videoId: string, map: ChordMap): Promise<void>
   analyzeSections(videoId: string): Promise<SectionMap>
   saveSections(videoId: string, map: SectionMap): Promise<void>
   exportStem(videoId: string, stem: string): Promise<{ saved: boolean; path?: string }>

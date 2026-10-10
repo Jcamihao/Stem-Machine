@@ -18,6 +18,10 @@ interface Props {
   onToggleSections: () => void
   loopMode: boolean
   onToggleLoopMode: () => void
+  chordsAvailable: boolean
+  showChords: boolean
+  onToggleChords: () => void
+  leftSlot?: React.ReactNode // acorde atual / próximo
 }
 
 export function TransportBar(p: Props): React.ReactElement {
@@ -36,6 +40,7 @@ export function TransportBar(p: Props): React.ReactElement {
 
   return (
     <div className="relative h-[84px] shrink-0 flex items-center justify-center">
+      {p.leftSlot && <div className="absolute left-6">{p.leftSlot}</div>}
       <div className="flex flex-col items-center gap-2">
         <div className="flex items-center gap-7">
           <div className="relative">
@@ -100,7 +105,12 @@ export function TransportBar(p: Props): React.ReactElement {
         <button disabled title="Letra — em breve" className={`${pill} bg-[#1e1e1e] text-white/35 cursor-not-allowed`}>
           <LyricsIcon className="w-4 h-4" /> Letra
         </button>
-        <button disabled title="Acordes — em breve (roadmap)" className={`${pill} bg-[#1e1e1e] text-white/35 cursor-not-allowed`}>
+        <button
+          onClick={p.onToggleChords}
+          disabled={!p.chordsAvailable}
+          title={p.chordsAvailable ? 'Mostrar/ocultar acordes' : 'Detectando acordes…'}
+          className={`${pill} ${p.showChords && p.chordsAvailable ? 'bg-white text-black' : 'bg-[#1e1e1e] text-white hover:bg-[#2a2a2a]'} disabled:opacity-40`}
+        >
           <ChordsIcon className="w-4 h-4" /> Acordes
         </button>
         <button
