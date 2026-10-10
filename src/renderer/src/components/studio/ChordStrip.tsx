@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ChordSegment } from '../../../../shared/types'
 import { chordAt, formatChord } from '../../lib/chords'
@@ -16,8 +16,19 @@ interface StripProps {
 export function ChordStrip({ chords, duration, shift, onSeek, onEdit }: StripProps): React.ReactElement {
   const [edit, setEdit] = useState<{ index: number; x: number; y: number; text: string } | null>(null)
   const pct = (t: number): number => (duration > 0 ? Math.min(100, Math.max(0, (t / duration) * 100)) : 0)
+  // largura real da faixa: o nome só aparece onde cabe (com a música inteira na tela,
+  // acordes curtos viram só uma marca, ainda clicável e corrigível)
+  const ref = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setWidth(el.clientWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   return (
-    <div className="relative w-full h-6 mb-1">
+    <div ref={ref} className="relative w-full h-6 mb-1">
       {chords.map((c, i) => {
         const name = formatChord(c.label, shift)
         if (!name) return null
@@ -33,7 +44,7 @@ export function ChordStrip({ chords, duration, shift, onSeek, onEdit }: StripPro
             className="no-drag absolute top-0 h-full px-1 text-left text-[11px] font-bold text-white/85 hover:text-white truncate border-l border-white/25"
             style={{ left: `${pct(c.start)}%`, width: `${pct(c.end) - pct(c.start)}%` }}
           >
-            {name}
+            {duration > 0 && ((c.end - c.start) / duration) * width >= name.length * 7 + 6 ? name : ''}
           </button>
         )
       })}
@@ -96,22 +107,38 @@ interface NowProps {
   getPosition: () => number
 }
 
-// acorde atual em destaque e o próximo ao lado (no canto da barra de transporte)
+// acorde atual em destaque e os próximos 3 (no canto da barra de transporte)
 export function ChordNow({ chords, shift, getPosition }: NowProps): React.ReactElement {
-  const [state, setState] = useState({ current: -1, next: -1 })
+  const [current, setCurrent] = useState(-1)
+  const [t, setT] = useState(0)
   useEffect(() => {
     const id = setInterval(() => {
-      const s = chordAt(chords, getPosition())
-      setState((prev) => (prev.current === s.current && prev.next === s.next ? prev : s))
+      const pos = getPosition()
+      setT(pos)
+      const { current: c } = chordAt(chords, pos)
+      setCurrent((prev) => (prev === c ? prev : c))
     }, 60)
     return () => clearInterval(id)
   }, [chords, getPosition])
-  const cur = state.current >= 0 ? formatChord(chords[state.current].label, shift) : ''
-  const nxt = state.next >= 0 ? formatChord(chords[state.next].label, shift) : ''
+  const cur = current >= 0 ? formatChord(chords[current].label, shift) : ''
+  // próximos acordes (pula "sem acorde" e repetições seguidas)
+  const upcoming: string[] = []
+  let last = cur
+  for (let i = current >= 0 ? current + 1 : chords.findIndex((c) => c.start > t); i >= 0 && i < chords.length && upcoming.length < 3; i++) {
+    const name = formatChord(chords[i].label, shift)
+    if (name && name !== last) {
+      upcoming.push(name)
+      last = name
+    }
+  }
   return (
-    <div className="flex items-baseline gap-3 min-w-[160px]">
-      <span className="text-[30px] font-extrabold leading-none tracking-tight">{cur || '—'}</span>
-      {nxt && <span className="text-[15px] font-semibold text-white/45">→ {nxt}</span>}
+    <div className="flex items-baseline gap-3 min-w-[200px]">
+      <span className="text-[32px] font-extrabold leading-none tracking-tight min-w-[64px]">{cur || '—'}</span>
+      {upcoming.map((name, i) => (
+        <span key={i} className={`font-semibold ${i === 0 ? 'text-[17px] text-white/60' : 'text-[14px] text-white/35'}`}>
+          {name}
+        </span>
+      ))}
     </div>
   )
 }
