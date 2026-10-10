@@ -197,7 +197,7 @@ export function StudioHeader(p: Props): React.ReactElement {
           {p.originalKey && (
             <p className="text-center text-[12px] text-white/45 mt-3">
               Original: {p.originalKey}
-              {p.semitones !== 0 && ` (${p.semitones > 0 ? '+' : ''}${p.semitones} semitom${Math.abs(p.semitones) > 1 ? 's' : ''})`}
+              {p.semitones !== 0 && ` (${p.semitones > 0 ? '+' : ''}${p.semitones} ${Math.abs(p.semitones) > 1 ? 'semitons' : 'semitom'})`}
             </p>
           )}
           <button
