@@ -34,6 +34,7 @@ import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUD
 import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addStems, analyzeSections, analyzeChords } from './pipeline'
 import { initUpdater } from './updater'
 import { guideClips } from './voice'
+import { detectKey, keyName } from '../shared/key'
 import { runSmoke } from './smoke'
 import { getThumb, clearThumbMemo } from './thumbs'
 
@@ -244,9 +245,15 @@ app.whenReady().then(async () => {
   ipcMain.handle('env:update-ytdlp', async () => updateYtDlp())
 
   ipcMain.handle('library:list', () => loadSongs())
-  // dados extras da tabela da biblioteca (BPM vem do metrônomo de cada música)
+  // dados extras da tabela da biblioteca: BPM (metrônomo) e tom (dos acordes)
   ipcMain.handle('library:meta', () =>
-    Object.fromEntries(loadSongs().map((s) => [s.videoId, { bpm: loadBeats(s.videoId)?.bpm ?? null }]))
+    Object.fromEntries(
+      loadSongs().map((s) => {
+        const chords = loadChords(s.videoId)
+        const key = chords ? detectKey(chords.chords) : null
+        return [s.videoId, { bpm: loadBeats(s.videoId)?.bpm ?? null, key: key ? keyName(key) : null }]
+      })
+    )
   )
   ipcMain.handle('library:delete', (_e, videoId: string) => removeSong(videoId))
   ipcMain.handle('song:buffers', (_e, videoId: string) => {

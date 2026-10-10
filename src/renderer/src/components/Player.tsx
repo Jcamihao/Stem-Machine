@@ -16,6 +16,7 @@ import { FLAT_EQ, type Eq } from './studio/EqButton'
 import { SectionBar } from './SectionBar'
 import { ChordNow, ChordStrip } from './studio/ChordStrip'
 import { formatChord } from '../lib/chords'
+import { detectKey, keyName } from '../../../shared/key'
 
 export type ClickFactor = 0.5 | 1 | 2
 
@@ -723,6 +724,8 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   }
 
   const clickGrid = beats ? applyFactor(beats, clickFactor) : null
+  // tom da música (dos acordes, inclusive os corrigidos à mão)
+  const musicKey = useMemo(() => (chords ? detectKey(chords.chords) : null), [chords])
   const exportItems: MenuItem[] = [
     { label: 'Exportar todas as faixas', onClick: exportAllStems, disabled: decoding || !!addProgress },
     ...stemMeta.map((meta) => ({
@@ -791,6 +794,8 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
         onSemitoneStep={(d) => setSemitones((prev) => Math.max(-12, Math.min(12, prev + d)))}
         tuningHz={tuningHz}
         onTuning={setTuningHz}
+        keyLabel={musicKey ? keyName(musicKey, semitones) : null}
+        originalKey={musicKey ? keyName(musicKey) : null}
         beatsPerBar={beats?.beatsPerBar ?? null}
         exportItems={exportItems}
         menuItems={menuItems}

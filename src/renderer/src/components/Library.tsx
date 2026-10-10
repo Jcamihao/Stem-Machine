@@ -75,11 +75,11 @@ function RowMenu({ song, onOpen, onDelete }: { song: Song; onOpen: () => void; o
 }
 
 /* biblioteca em tabela: título (capa, nome, origem), data, gênero, BPM, tom,
-   duração. Gênero e tom ainda não são detectados: aparecem como "–" */
+   duração. Tom vem dos acordes; gênero ainda não é detectado ("–") */
 export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd, onOpenSettings }: Props): React.ReactElement {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean }>({ key: 'date', asc: false })
-  const [meta, setMeta] = useState<Record<string, { bpm: number | null }>>({})
+  const [meta, setMeta] = useState<Record<string, { bpm: number | null; key: string | null }>>({})
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   // BPM vem do arquivo de batidas de cada música: recarrega quando a lista muda
@@ -227,7 +227,7 @@ export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd,
               <span className={`text-[13px] ${dim}`}>{fmtDate(song.addedAt)}</span>
               <span className={`text-[13px] ${dim}`}>–</span>
               <span className={`text-[13px] ${dim}`}>{bpm ? Math.round(bpm) : '–'}</span>
-              <span className={`text-[13px] ${dim}`}>–</span>
+              <span className={`text-[13px] ${dim}`}>{meta[song.videoId]?.key ?? '–'}</span>
               <span className={`text-[13px] ${dim}`}>{fmtDuration(song.duration)}</span>
               <RowMenu
                 song={song}

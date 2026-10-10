@@ -114,6 +114,8 @@ interface Props {
   onSemitoneStep: (delta: number) => void
   tuningHz: number
   onTuning: (hz: number) => void
+  keyLabel: string | null // tom detectado, já com a transposição
+  originalKey: string | null
   exportItems: MenuItem[]
   menuItems: MenuItem[]
   outputSplit?: boolean
@@ -165,7 +167,8 @@ export function StudioHeader(p: Props): React.ReactElement {
           className={`${chip} ${p.semitones !== 0 || p.tuningHz !== 440 ? 'ring-1 ring-amber-300' : ''}`}
           label={
             <>
-              <TuneIcon className="w-[18px] h-[18px]" /> {p.semitones === 0 ? '—' : `${p.semitones > 0 ? '+' : ''}${p.semitones}`}
+              <TuneIcon className="w-[18px] h-[18px]" />{' '}
+              {p.keyLabel ?? (p.semitones === 0 ? '—' : `${p.semitones > 0 ? '+' : ''}${p.semitones}`)}
               <ChevronIcon className="w-4 h-4 text-white/50" />
             </>
           }
@@ -186,11 +189,17 @@ export function StudioHeader(p: Props): React.ReactElement {
             </select>
           </div>
           <Stepper
-            // o tom da música ainda não é detectado: mostra a transposição
-            value={p.semitones === 0 ? 'Original' : `${p.semitones > 0 ? '+' : ''}${p.semitones}`}
+            // nota do tom (dos acordes); sem acordes ainda, mostra a transposição
+            value={p.keyLabel ?? (p.semitones === 0 ? 'Original' : `${p.semitones > 0 ? '+' : ''}${p.semitones}`)}
             onMinus={() => p.onSemitoneStep(-1)}
             onPlus={() => p.onSemitoneStep(1)}
           />
+          {p.originalKey && (
+            <p className="text-center text-[12px] text-white/45 mt-3">
+              Original: {p.originalKey}
+              {p.semitones !== 0 && ` (${p.semitones > 0 ? '+' : ''}${p.semitones} semitom${Math.abs(p.semitones) > 1 ? 's' : ''})`}
+            </p>
+          )}
           <button
             onClick={() => {
               p.onSemitones(0)

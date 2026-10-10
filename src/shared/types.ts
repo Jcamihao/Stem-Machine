@@ -175,7 +175,7 @@ export interface StemKitApi {
   getGuideClips(): Promise<Record<string, Uint8Array>>
   addStems(videoId: string, stems: string[]): Promise<void>
   getSections(videoId: string): Promise<SectionMap | null>
-  libraryMeta(): Promise<Record<string, { bpm: number | null }>>
+  libraryMeta(): Promise<Record<string, { bpm: number | null; key: string | null }>>
   getChords(videoId: string): Promise<ChordMap | null>
   analyzeChords(videoId: string): Promise<ChordMap>
   saveChords(videoId: string, map: ChordMap): Promise<void>
