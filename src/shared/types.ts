@@ -159,9 +159,6 @@ export interface StemKitApi {
   saveBeats(videoId: string, grid: BeatGrid): Promise<void>
   saveGenerated(videoId: string, stem: 'click' | 'guide', wav: Uint8Array): Promise<void>
   getGuideClips(): Promise<Record<string, Uint8Array>>
-  // velocidade (0.5–1.5) e tom (−12..+12 semitons) via Rubber Band; 1/0 = original
-  getVariantBuffers(videoId: string, speed: number, semitones: number): Promise<Record<string, Uint8Array>>
-  onVariantProgress(cb: (p: { videoId: string; done: number; total: number }) => void): () => void
   addStems(videoId: string, stems: string[]): Promise<void>
   getSections(videoId: string): Promise<SectionMap | null>
   libraryMeta(): Promise<Record<string, { bpm: number | null }>>

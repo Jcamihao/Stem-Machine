@@ -64,10 +64,36 @@ function Popover({ label, className, children }: { label: React.ReactNode; class
         {label}
       </button>
       {open && (
-        <div className="absolute top-11 right-0 z-50 w-[260px] bg-[#1c1c1c] border border-white/10 rounded-lg p-4 shadow-2xl">
+        <div className="absolute top-11 right-0 z-50 w-[300px] bg-[#1a1a1a] border border-white/10 rounded-xl p-5 shadow-2xl">
           {children}
         </div>
       )}
+    </div>
+  )
+}
+
+// nome clássico do andamento (o painel de BPM mostra junto do número)
+function tempoName(bpm: number): string {
+  if (bpm < 40) return 'Grave'
+  if (bpm < 60) return 'Largo'
+  if (bpm < 66) return 'Larghetto'
+  if (bpm < 76) return 'Adagio'
+  if (bpm < 108) return 'Andante'
+  if (bpm < 120) return 'Moderato'
+  if (bpm < 156) return 'Allegro'
+  if (bpm < 176) return 'Vivace'
+  if (bpm < 200) return 'Presto'
+  return 'Prestissimo'
+}
+
+// − [valor] + no estilo dos painéis de BPM e tom
+function Stepper({ value, onMinus, onPlus }: { value: string; onMinus: () => void; onPlus: () => void }): React.ReactElement {
+  const btn = 'no-drag w-16 h-16 rounded-lg bg-[#262626] hover:bg-[#333] text-[28px] font-light text-white/90 flex items-center justify-center'
+  return (
+    <div className="flex items-center gap-2">
+      <button onClick={onMinus} className={btn}>−</button>
+      <div className="flex-1 h-16 rounded-lg bg-[#262626] flex items-center justify-center text-[24px] font-semibold tabular-nums">{value}</div>
+      <button onClick={onPlus} className={btn}>+</button>
     </div>
   )
 }
@@ -78,12 +104,14 @@ interface Props {
   onBack: () => void
   canAddStems: boolean
   onAddStems: () => void
-  bpm: number | null
+  baseBpm: number | null // BPM detectado (com 0.5x/2x do metrônomo), antes da velocidade
   beatsPerBar: number | null
   speed: number
   onSpeed: (v: number) => void
   semitones: number
   onSemitones: (v: number) => void
+  tuningHz: number
+  onTuning: (hz: number) => void
   exportItems: MenuItem[]
   menuItems: MenuItem[]
   outputSplit?: boolean
@@ -108,44 +136,31 @@ export function StudioHeader(p: Props): React.ReactElement {
           className={`${chip} ${p.speed !== 1 ? 'ring-1 ring-amber-300' : ''}`}
           label={
             <>
-              <MetronomeIcon className="w-[18px] h-[18px]" /> {p.bpm ? Math.round(p.bpm) : '—'}
-              {p.speed !== 1 && <span className="text-amber-300 text-[11px]">{Math.round(p.speed * 100)}%</span>}
+              <MetronomeIcon className="w-[18px] h-[18px]" /> {p.baseBpm ? Math.round(p.baseBpm * p.speed) : '—'}
               <ChevronIcon className="w-4 h-4 text-white/50" />
             </>
           }
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[13px] font-semibold">Velocidade</span>
-            <span className="text-[13px] tabular-nums text-amber-300">{Math.round(p.speed * 100)}%</span>
-          </div>
-          <input
-            type="range"
-            min={50}
-            max={150}
-            step={5}
-            value={Math.round(p.speed * 100)}
-            onChange={(e) => p.onSpeed(parseInt(e.target.value, 10) / 100)}
-            className="no-drag studio-volume w-full"
-            style={{ background: `linear-gradient(to right, #fcd34d ${p.speed * 100 - 50}%, rgba(255,255,255,0.18) ${p.speed * 100 - 50}%)` }}
-          />
-          <div className="flex items-center justify-between mt-3 gap-2">
-            {[-5, 5].map((d) => (
-              <button
-                key={d}
-                onClick={() => p.onSpeed(Math.max(0.5, Math.min(1.5, Math.round(p.speed * 100 + d) / 100)))}
-                className="no-drag flex-1 h-8 rounded-md bg-white/[0.07] hover:bg-white/15 text-[12px] font-semibold"
-              >
-                {d > 0 ? '+5%' : '−5%'}
-              </button>
-            ))}
-            <button onClick={() => p.onSpeed(1)} className="no-drag flex-1 h-8 rounded-md bg-white/[0.07] hover:bg-white/15 text-[12px] font-semibold">
-              Original
-            </button>
-          </div>
-          <p className="text-[11px] text-white/40 mt-3 leading-relaxed">Muda só a velocidade; o tom continua igual. A primeira vez de cada valor leva alguns segundos.</p>
+          <p className="text-center text-[14px] font-bold mb-5">BPM</p>
+          {p.baseBpm ? (
+            <>
+              <p className="text-[13px] font-semibold mb-2">{tempoName(p.baseBpm * p.speed)}</p>
+              <Stepper
+                value={String(Math.round(p.baseBpm * p.speed))}
+                // 1 BPM por clique; a velocidade fica entre 50% e 150% da original
+                onMinus={() => p.onSpeed(Math.max(0.5, (Math.round(p.baseBpm! * p.speed) - 1) / p.baseBpm!))}
+                onPlus={() => p.onSpeed(Math.min(1.5, (Math.round(p.baseBpm! * p.speed) + 1) / p.baseBpm!))}
+              />
+            </>
+          ) : (
+            <p className="text-[12px] text-white/50 text-center">Detectando batidas…</p>
+          )}
+          <button onClick={() => p.onSpeed(1)} className="no-drag w-full mt-4 text-[13px] text-white/45 hover:text-white">
+            Redefinir
+          </button>
         </Popover>
         <Popover
-          className={`${chip} ${p.semitones !== 0 ? 'ring-1 ring-amber-300' : ''}`}
+          className={`${chip} ${p.semitones !== 0 || p.tuningHz !== 440 ? 'ring-1 ring-amber-300' : ''}`}
           label={
             <>
               <TuneIcon className="w-[18px] h-[18px]" /> {p.semitones === 0 ? '—' : `${p.semitones > 0 ? '+' : ''}${p.semitones}`}
@@ -153,25 +168,36 @@ export function StudioHeader(p: Props): React.ReactElement {
             </>
           }
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[13px] font-semibold">Transpor</span>
-            <span className="text-[13px] tabular-nums text-amber-300">
-              {p.semitones === 0 ? 'original' : `${p.semitones > 0 ? '+' : ''}${p.semitones} semitom${Math.abs(p.semitones) > 1 ? 's' : ''}`}
-            </span>
+          <p className="text-center text-[14px] font-bold mb-3">Tom da Música</p>
+          <div className="flex items-center justify-center gap-2 mb-5 text-[13px] text-white/55">
+            Afinação (Hz):
+            <select
+              value={p.tuningHz}
+              onChange={(e) => p.onTuning(parseInt(e.target.value, 10))}
+              className="no-drag bg-transparent text-white font-semibold outline-none cursor-pointer"
+            >
+              {Array.from({ length: 21 }, (_, i) => 430 + i).map((hz) => (
+                <option key={hz} value={hz} className="bg-[#1a1a1a]">
+                  {hz}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => p.onSemitones(Math.max(-12, p.semitones - 1))} className="no-drag w-10 h-9 rounded-md bg-white/[0.07] hover:bg-white/15 text-[16px] font-bold">
-              −
-            </button>
-            <div className="flex-1 text-center text-[20px] font-bold tabular-nums">{p.semitones > 0 ? `+${p.semitones}` : p.semitones}</div>
-            <button onClick={() => p.onSemitones(Math.min(12, p.semitones + 1))} className="no-drag w-10 h-9 rounded-md bg-white/[0.07] hover:bg-white/15 text-[16px] font-bold">
-              +
-            </button>
-          </div>
-          <button onClick={() => p.onSemitones(0)} className="no-drag w-full h-8 mt-3 rounded-md bg-white/[0.07] hover:bg-white/15 text-[12px] font-semibold">
-            Tom original
+          <Stepper
+            // o tom da música ainda não é detectado: mostra a transposição
+            value={p.semitones === 0 ? 'Original' : `${p.semitones > 0 ? '+' : ''}${p.semitones}`}
+            onMinus={() => p.onSemitones(Math.max(-12, p.semitones - 1))}
+            onPlus={() => p.onSemitones(Math.min(12, p.semitones + 1))}
+          />
+          <button
+            onClick={() => {
+              p.onSemitones(0)
+              p.onTuning(440)
+            }}
+            className="no-drag w-full mt-4 text-[13px] text-white/45 hover:text-white"
+          >
+            Redefinir
           </button>
-          <p className="text-[11px] text-white/40 mt-3 leading-relaxed">Muda só o tom; a velocidade continua igual. Detectar o tom da música (ex.: G#m) ainda está no roadmap.</p>
         </Popover>
         <div className={chip} title="Compasso">
           <MeterIcon className="w-[18px] h-[18px]" /> {p.beatsPerBar ? `${p.beatsPerBar}/4` : '—'}

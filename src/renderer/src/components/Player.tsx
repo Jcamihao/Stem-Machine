@@ -108,12 +108,10 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   const [sectionsBusy, setSectionsBusy] = useState(false)
   const [sectionsError, setSectionsError] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
-  // velocidade (0.5–1.5) e tom (semitons) — processados com Rubber Band no main
+  // velocidade (0.5–1.5), transposição (semitons) e afinação (A4 em Hz): em tempo real
   const [speed, setSpeed] = useState(1)
   const [semitones, setSemitones] = useState(0)
-  const [variantProgress, setVariantProgress] = useState<{ done: number; total: number } | null>(null)
-  const [variantError, setVariantError] = useState<string | null>(null)
-  const appliedVariantRef = useRef('1|0')
+  const [tuningHz, setTuningHz] = useState(440)
   const [addPick, setAddPick] = useState<Set<StemId>>(new Set())
   const [addProgress, setAddProgress] = useState<{ pct: number; message?: string } | null>(null)
   const [addError, setAddError] = useState<string | null>(null)
@@ -140,10 +138,9 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     setPans({})
     setSpeed(1)
     setSemitones(0)
-    setVariantProgress(null)
-    setVariantError(null)
-    appliedVariantRef.current = '1|0'
-    engine.speed = 1
+    setTuningHz(440)
+    engine.setRate(1)
+    engine.setPitch(0, 440)
     setLoopA(null)
     setLoopB(null)
     setLoopOn(false)
@@ -235,46 +232,12 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     .map(([id, b]) => `${id}:${b?.length ?? 0}`)
     .join('|')
 
-  /* troca de velocidade/tom: espera ~0,7s sem mexer e carrega a versão
-     processada (ou a original, em 100% / 0). A posição na música não muda */
   useEffect(() => {
-    if (decoding) return
-    const key = `${speed}|${semitones}`
-    if (key === appliedVariantRef.current) return
-    let cancelled = false
-    const timer = setTimeout(() => {
-      setVariantError(null)
-      const load =
-        speed === 1 && semitones === 0
-          ? getDecoded(song)
-          : window.stemkit.getVariantBuffers(song.videoId, speed, semitones).then(decodePayload)
-      load
-        .then((decoded) => {
-          if (cancelled) return
-          appliedVariantRef.current = key
-          engine.setVariant(decoded, speed)
-          setBuffers(decoded)
-        })
-        .catch((err) => {
-          if (!cancelled) setVariantError(err instanceof Error ? err.message : String(err))
-        })
-        .finally(() => {
-          if (!cancelled) setVariantProgress(null)
-        })
-    }, 700)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [speed, semitones, decoding, song])
-
-  useEffect(
-    () =>
-      window.stemkit.onVariantProgress((p) => {
-        if (p.videoId === song.videoId) setVariantProgress(p.done < p.total ? { done: p.done, total: p.total } : null)
-      }),
-    [song.videoId]
-  )
+    engine.setRate(speed)
+  }, [speed])
+  useEffect(() => {
+    engine.setPitch(semitones, tuningHz)
+  }, [semitones, tuningHz])
 
   // click como stem: gerado das batidas (com ½×/2×) depois que os stems carregam
   useEffect(() => {
@@ -300,7 +263,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     const click = renderClick(
       grid.beats.map((t) => t / speed),
       grid.downbeats.map((t) => t / speed),
-      stemDuration
+      stemDuration / speed
     )
     engine.setStemBuffer('click', click)
     setBuffers((prev) => ({ ...prev, click }))
@@ -342,7 +305,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
           downbeats: beats.downbeats.map((t) => t / speed)
         }
         const scaledSections = list.map((x) => ({ ...x, start: x.start / speed, end: x.end / speed }))
-        const guide = renderGuide(scaledSections, scaledGrid, clips, stemDuration)
+        const guide = renderGuide(scaledSections, scaledGrid, clips, stemDuration / speed)
         engine.setStemBuffer('guide', guide)
         setBuffers((prev) => ({ ...prev, guide }))
         setVols((prev) => ('guide' in prev ? prev : { ...prev, guide: 1 }))
@@ -728,8 +691,6 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   ]
   const notices = [
     flash,
-    variantProgress && `Processando velocidade/tom… ${variantProgress.done}/${variantProgress.total} faixas`,
-    variantError && `Velocidade/tom: ${variantError}`,
     analyzing && 'Detectando batidas…',
     sectionsBusy && 'Detectando seções…',
     clickError && `Metrônomo: ${clickError}`,
@@ -746,11 +707,13 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
         onBack={onBack}
         canAddStems={missingStems.length > 0 && !decoding && !addProgress}
         onAddStems={() => setAddOpen(true)}
-        bpm={beats ? beats.bpm * clickFactor * speed : null}
+        baseBpm={beats ? beats.bpm * clickFactor : null}
         speed={speed}
         onSpeed={setSpeed}
         semitones={semitones}
         onSemitones={setSemitones}
+        tuningHz={tuningHz}
+        onTuning={setTuningHz}
         beatsPerBar={beats?.beatsPerBar ?? null}
         exportItems={exportItems}
         menuItems={menuItems}

@@ -1,3 +1,4 @@
+import SignalsmithStretch from 'signalsmith-stretch'
 import type { StemId } from '../../../shared/types'
 
 export type BufferMap = Partial<Record<StemId, AudioBuffer>>
@@ -54,6 +55,8 @@ export function renderClick(
   return out
 }
 
+const isCue = (id: StemId): boolean => id === 'click' || id === 'guide'
+
 export class StemEngine {
   private ctx: AudioContext | null = null
   private buffers: BufferMap = {}
@@ -61,12 +64,21 @@ export class StemEngine {
   // pan L/R por faixa: volume -> pan -> master
   private pans: Partial<Record<StemId, StereoPannerNode>> = {}
   private master: GainNode | null = null
-  /* saída L/R (playback): click e guia em mono no L, música em mono no R. Os
-     dois caminhos existem sempre; a troca só liga/desliga um ganho em cada um */
+  /* roteamento: cada faixa -> volume -> pan -> barramento de música ou de
+     click/guia (cue). Música: velocidade nas próprias faixas (playbackRate,
+     instantâneo) e um corretor de tom em tempo real (Signalsmith Stretch) que
+     desfaz a mudança de tom da velocidade e aplica transposição/afinação. Cue:
+     gerado já na velocidade certa, atrasado pela latência do corretor.
+     Saída normal (estéreo) ou L/R (cue mono no L, música mono no R) */
+  private musicIn: GainNode | null = null
+  private cueIn: GainNode | null = null
+  private dry: GainNode | null = null
+  private wet: GainNode | null = null
+  private cueDelay: DelayNode | null = null
+  private stretch: (AudioNode & Record<string, any>) | null = null
+  private stretchLatency = 0 // segundos; o atraso do click/guia acompanha
   private normalOut: GainNode | null = null
   private splitOut: GainNode | null = null
-  private cueBus: GainNode | null = null
-  private musicBus: GainNode | null = null
   private split = false
   private sources: AudioBufferSourceNode[] = []
   private playing = false
@@ -75,10 +87,10 @@ export class StemEngine {
   private loopA: number | null = null
   private loopB: number | null = null
   private loopOn = false
-  /* velocidade: os buffers vêm esticados pelo Rubber Band (duração = música /
-     speed), então tudo que é "tempo da música" (posição, loop, duração) é
-     convertido para o tempo do buffer dividindo por speed. O áudio toca em 1x */
-  speed = 1
+  // velocidade (1 = original) e tom: semitons + afinação de referência (A4 em Hz)
+  rate = 1
+  private semitones = 0
+  private tuningHz = 440
 
   private ensureCtx(): AudioContext {
     if (!this.ctx) {
@@ -91,7 +103,6 @@ export class StemEngine {
       this.normalOut.connect(this.master)
       this.splitOut = ctx.createGain()
       this.splitOut.connect(this.master)
-      // barramentos mono: o estéreo de cada faixa é somado num canal só
       const monoBus = (): GainNode => {
         const g = ctx.createGain()
         g.channelCount = 1
@@ -99,15 +110,94 @@ export class StemEngine {
         g.channelInterpretation = 'speakers'
         return g
       }
-      this.cueBus = monoBus()
-      this.musicBus = monoBus()
+      // música: entrada -> (seco | corretor) -> saídas
+      this.musicIn = ctx.createGain()
+      this.dry = ctx.createGain()
+      this.wet = ctx.createGain()
+      this.wet.gain.value = 0
+      this.musicIn.connect(this.dry)
+      const musicOut = ctx.createGain()
+      this.dry.connect(musicOut)
+      this.wet.connect(musicOut)
+      // click/guia: entrada -> atraso (latência do corretor) -> saídas
+      this.cueIn = ctx.createGain()
+      this.cueDelay = ctx.createDelay(1)
+      this.cueIn.connect(this.cueDelay)
+      const cueOut = ctx.createGain()
+      this.cueDelay.connect(cueOut)
+      // saída normal: tudo em estéreo
+      musicOut.connect(this.normalOut)
+      cueOut.connect(this.normalOut)
+      // saída L/R: cue mono no L, música mono no R
+      const cueMono = monoBus()
+      const musicMono = monoBus()
+      cueOut.connect(cueMono)
+      musicOut.connect(musicMono)
       const merger = ctx.createChannelMerger(2)
-      this.cueBus.connect(merger, 0, 0) // L
-      this.musicBus.connect(merger, 0, 1) // R
+      cueMono.connect(merger, 0, 0)
+      musicMono.connect(merger, 0, 1)
       merger.connect(this.splitOut)
       this.applyOutputMode()
+      // o corretor carrega em segundo plano (WASM); até lá a música toca seca
+      void SignalsmithStretch(ctx, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] })
+        .then((node: AudioNode & Record<string, any>) => {
+          this.stretch = node
+          this.musicIn!.connect(node)
+          node.connect(this.wet!)
+          node.start()
+          this.applyPitch()
+          // latency() é assíncrona: guarda quando chegar e reaplica o atraso do cue
+          void Promise.resolve(node.latency()).then((l: unknown) => {
+            this.stretchLatency = Number(l) || 0
+            this.applyPitch()
+          })
+        })
+        .catch(() => {})
     }
     return this.ctx
+  }
+
+  // quanto o corretor desloca o tom: transposição + afinação − o efeito da velocidade
+  private pitchShift(): number {
+    return this.semitones + 12 * Math.log2(this.tuningHz / 440) - 12 * Math.log2(this.rate)
+  }
+
+  private applyPitch(): void {
+    if (!this.ctx || !this.dry || !this.wet || !this.cueDelay) return
+    const shift = this.pitchShift()
+    const active = !!this.stretch && Math.abs(shift) > 0.001
+    const now = this.ctx.currentTime
+    if (this.stretch) {
+      this.stretch.schedule({
+        output: now,
+        semitones: shift,
+        // formantes: desfaz o deslocamento da velocidade; na transposição, preserva
+        formantCompensation: true,
+        formantSemitones: -12 * Math.log2(this.rate)
+      })
+    }
+    this.dry.gain.setValueAtTime(active ? 0 : 1, now)
+    this.wet.gain.setValueAtTime(active ? 1 : 0, now)
+    const latency = active ? this.stretchLatency : 0
+    this.cueDelay.delayTime.setValueAtTime(Math.min(0.9, latency), now)
+  }
+
+  // transposição em semitons e afinação de referência (A4 = tuningHz)
+  setPitch(semitones: number, tuningHz: number): void {
+    this.semitones = semitones
+    this.tuningHz = tuningHz
+    this.ensureCtx()
+    this.applyPitch()
+  }
+
+  // velocidade: mantém a posição na música e reinicia as fontes no novo ritmo
+  setRate(rate: number): void {
+    if (rate === this.rate) return
+    const t = this.expected()
+    this.rate = rate
+    this.applyPitch()
+    if (this.playing) this.align(t)
+    else this.anchorYt = t
   }
 
   private applyOutputMode(): void {
@@ -129,9 +219,7 @@ export class StemEngine {
       g = ctx.createGain()
       const pan = ctx.createStereoPanner()
       g.connect(pan)
-      pan.connect(this.normalOut!)
-      // caminho L/R: click e guia vão para o L, o resto para o R
-      g.connect(id === 'click' || id === 'guide' ? this.cueBus! : this.musicBus!)
+      pan.connect(isCue(id) ? this.cueIn! : this.musicIn!)
       this.gains[id] = g
       this.pans[id] = pan
     }
@@ -197,13 +285,16 @@ export class StemEngine {
       const gain = this.getGain(id)
       const src = ctx.createBufferSource()
       src.buffer = buf
+      // música toca no ritmo escolhido; click/guia já vêm gerados nele (tempo / rate)
+      const k = isCue(id) ? this.rate : 1
+      if (!isCue(id)) src.playbackRate.value = this.rate
       if (this.looping()) {
         src.loop = true
-        src.loopStart = this.loopA! / this.speed
-        src.loopEnd = Math.min(this.loopB! / this.speed, buf.duration)
+        src.loopStart = this.loopA! / k
+        src.loopEnd = Math.min(this.loopB! / k, buf.duration)
       }
       src.connect(gain)
-      src.start(startAt, Math.min(Math.max(0, time / this.speed), Math.max(0, buf.duration - 0.01)))
+      src.start(startAt, Math.min(Math.max(0, time / k), Math.max(0, buf.duration - 0.01)))
       this.sources.push(src)
     }
     this.anchorCtx = startAt
@@ -211,32 +302,20 @@ export class StemEngine {
 
   expected(): number {
     if (!this.ctx || !this.playing) return this.anchorYt
-    const raw = this.anchorYt + (this.ctx.currentTime - this.anchorCtx) * this.speed
+    const raw = this.anchorYt + (this.ctx.currentTime - this.anchorCtx) * this.rate
     if (this.looping() && raw >= this.loopB!) {
       return this.loopA! + ((raw - this.loopA!) % (this.loopB! - this.loopA!))
     }
     return raw
   }
 
-  // duração no tempo da música (o buffer esticado dura música / speed)
+  // duração da música: só as faixas separadas (click/guia são gerados no ritmo)
   trackDuration(): number {
     let d = 0
-    for (const buf of Object.values(this.buffers)) {
-      if (buf && buf.duration > d) d = buf.duration
+    for (const [id, buf] of Object.entries(this.buffers)) {
+      if (buf && !isCue(id as StemId) && buf.duration > d) d = buf.duration
     }
-    return d * this.speed
-  }
-
-  /* troca as faixas por outra versão (velocidade/tom) sem perder a posição: o
-     tempo da música continua o mesmo, só muda o fator de conversão */
-  setVariant(buffers: BufferMap, speed: number): void {
-    const t = this.expected()
-    const wasPlaying = this.playing
-    this.stopSources()
-    this.buffers = { ...buffers }
-    this.speed = speed
-    this.playing = wasPlaying
-    this.align(t)
+    return d
   }
 
   applyMix(
