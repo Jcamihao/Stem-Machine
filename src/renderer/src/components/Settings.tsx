@@ -239,6 +239,21 @@ export function Settings({ settings, gpu, gpuVendor, onChange, onClose }: Props)
 
         <div className="px-5 py-4 space-y-6 max-h-[70vh] overflow-y-auto">
           <section className="space-y-5">
+            <SectionHeader label="Saída (playback)" />
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[13px] font-medium">Click e guia no L, música no R</p>
+                <p className="text-[11.5px] text-white/40 leading-relaxed mt-0.5">
+                  Para mesa de som ou placa: o lado esquerdo vai para o retorno (in-ear) só com
+                  metrônomo e guia; o direito leva a música em mono para o PA. Os pans ficam sem
+                  efeito; os volumes de cada faixa continuam valendo.
+                </p>
+              </div>
+              <Toggle on={settings.outputSplit} onClick={() => onChange({ outputSplit: !settings.outputSplit })} />
+            </div>
+          </section>
+
+          <section className="space-y-5">
             <SectionHeader label="Separation" />
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">

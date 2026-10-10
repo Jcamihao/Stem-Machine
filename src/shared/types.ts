@@ -39,6 +39,8 @@ export interface AppSettings {
   // aac (.m4a) is transcoded on export via the bundled ffmpeg. mp3 isn't an
   // option — the bundled ffmpeg is a minimal static build without libmp3lame
   exportFormat: 'wav' | 'aac'
+  // playback: click e guia em mono no canal L (retorno), música em mono no R (PA)
+  outputSplit: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -47,7 +49,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   roformerVocals: false,
   gpuSplit: false,
   hideVideo: false,
-  exportFormat: 'wav'
+  exportFormat: 'wav',
+  outputSplit: false
 }
 
 export interface EngineStatus {

@@ -61,6 +61,13 @@ export class StemEngine {
   // pan L/R por faixa: volume -> pan -> master
   private pans: Partial<Record<StemId, StereoPannerNode>> = {}
   private master: GainNode | null = null
+  /* saída L/R (playback): click e guia em mono no L, música em mono no R. Os
+     dois caminhos existem sempre; a troca só liga/desliga um ganho em cada um */
+  private normalOut: GainNode | null = null
+  private splitOut: GainNode | null = null
+  private cueBus: GainNode | null = null
+  private musicBus: GainNode | null = null
+  private split = false
   private sources: AudioBufferSourceNode[] = []
   private playing = false
   private anchorYt = 0
@@ -73,11 +80,43 @@ export class StemEngine {
   private ensureCtx(): AudioContext {
     if (!this.ctx) {
       this.ctx = new AudioContext()
-      this.master = this.ctx.createGain()
+      const ctx = this.ctx
+      this.master = ctx.createGain()
       this.master.gain.value = 0.9
-      this.master.connect(this.ctx.destination)
+      this.master.connect(ctx.destination)
+      this.normalOut = ctx.createGain()
+      this.normalOut.connect(this.master)
+      this.splitOut = ctx.createGain()
+      this.splitOut.connect(this.master)
+      // barramentos mono: o estéreo de cada faixa é somado num canal só
+      const monoBus = (): GainNode => {
+        const g = ctx.createGain()
+        g.channelCount = 1
+        g.channelCountMode = 'explicit'
+        g.channelInterpretation = 'speakers'
+        return g
+      }
+      this.cueBus = monoBus()
+      this.musicBus = monoBus()
+      const merger = ctx.createChannelMerger(2)
+      this.cueBus.connect(merger, 0, 0) // L
+      this.musicBus.connect(merger, 0, 1) // R
+      merger.connect(this.splitOut)
+      this.applyOutputMode()
     }
     return this.ctx
+  }
+
+  private applyOutputMode(): void {
+    if (!this.normalOut || !this.splitOut) return
+    this.normalOut.gain.value = this.split ? 0 : 1
+    this.splitOut.gain.value = this.split ? 1 : 0
+  }
+
+  // liga/desliga a saída L/R (click + guia no L, música no R)
+  setOutputSplit(on: boolean): void {
+    this.split = on
+    this.applyOutputMode()
   }
 
   private getGain(id: StemId): GainNode {
@@ -87,7 +126,9 @@ export class StemEngine {
       g = ctx.createGain()
       const pan = ctx.createStereoPanner()
       g.connect(pan)
-      pan.connect(this.master!)
+      pan.connect(this.normalOut!)
+      // caminho L/R: click e guia vão para o L, o resto para o R
+      g.connect(id === 'click' || id === 'guide' ? this.cueBus! : this.musicBus!)
       this.gains[id] = g
       this.pans[id] = pan
     }

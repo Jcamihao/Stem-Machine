@@ -77,7 +77,7 @@ interface Props {
   onBack: () => void
 }
 
-export function Player({ song, onBack }: Props): React.ReactElement {
+export function Player({ song, settings, onBack }: Props): React.ReactElement {
   const posRef = useRef(0)
   const playingRef = useRef(false)
   const songIdRef = useRef(song.videoId)
@@ -198,6 +198,11 @@ export function Player({ song, onBack }: Props): React.ReactElement {
   useEffect(() => {
     for (const [id, value] of Object.entries(pans)) engine.setPan(id as StemId, value ?? 0)
   }, [pans])
+
+  const outputSplit = !!settings?.outputSplit
+  useEffect(() => {
+    engine.setOutputSplit(outputSplit)
+  }, [outputSplit])
 
   useEffect(
     () =>
@@ -640,6 +645,10 @@ export function Player({ song, onBack }: Props): React.ReactElement {
       onClick: analyzeSections,
       disabled: sectionsBusy
     },
+    {
+      label: outputSplit ? 'Saída L/R: ligada (desligar)' : 'Saída L/R: click e guia no L, música no R',
+      onClick: () => void window.stemkit.setSettings({ outputSplit: !outputSplit })
+    },
     { label: 'Desfazer (Ctrl+Z)', onClick: undo },
     { label: 'Refazer (Ctrl+Shift+Z)', onClick: redo },
     { label: 'Marcar o 1 aqui (tecla 1)', onClick: () => markOne(false), disabled: !beats },
@@ -668,6 +677,7 @@ export function Player({ song, onBack }: Props): React.ReactElement {
         beatsPerBar={beats?.beatsPerBar ?? null}
         exportItems={exportItems}
         menuItems={menuItems}
+        outputSplit={outputSplit}
       />
 
       <div className="flex-1 min-h-0 overflow-y-auto">

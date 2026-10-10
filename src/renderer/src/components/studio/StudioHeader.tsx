@@ -56,6 +56,7 @@ interface Props {
   beatsPerBar: number | null
   exportItems: MenuItem[]
   menuItems: MenuItem[]
+  outputSplit?: boolean
 }
 
 export function StudioHeader(p: Props): React.ReactElement {
@@ -82,6 +83,14 @@ export function StudioHeader(p: Props): React.ReactElement {
         <div className={chip} title="Compasso">
           <MeterIcon className="w-[18px] h-[18px]" /> {p.beatsPerBar ? `${p.beatsPerBar}/4` : '—'}
         </div>
+        {p.outputSplit && (
+          <div
+            className="h-9 px-3 rounded-md bg-amber-300 text-black text-[12px] font-bold flex items-center"
+            title="Saída L/R ligada: click e guia no L, música no R (desliga no menu ⋮ ou nas Configurações)"
+          >
+            L/R
+          </div>
+        )}
         <Dropdown items={p.exportItems} className="no-drag flex items-center gap-2 h-9 px-3.5 rounded-md border-2 border-white/90 text-[13px] font-semibold text-white hover:bg-white/10">
           <ExportIcon className="w-[18px] h-[18px]" /> Exportar
         </Dropdown>
