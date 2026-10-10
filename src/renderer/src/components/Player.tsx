@@ -409,9 +409,20 @@ export function Player({ song, onBack }: Props): React.ReactElement {
 
   // edição das seções (mover, dividir, juntar, excluir, renomear): salva e marca
   // o mapa como editado; a guia se refaz sozinha porque depende de `sections`
+  // desfazer/refazer das correções: guarda só o que cada ação mudou (as batidas
+  // no "marcar o 1", as seções nas edições), como estava antes
+  type Snapshot = { kind: 'beats'; value: BeatGrid } | { kind: 'sections'; value: SectionMap }
+  const undoRef = useRef<Snapshot[]>([])
+  const redoRef = useRef<Snapshot[]>([])
+  const remember = (snap: Snapshot): void => {
+    undoRef.current = [...undoRef.current.slice(-49), snap]
+    redoRef.current = []
+  }
+
   const updateSections = useCallback(
     (next: Section[]): void => {
       if (!sections) return
+      remember({ kind: 'sections', value: sections })
       const map: SectionMap = { ...sections, edited: true, sections: next }
       setSections(map)
       void window.stemkit.saveSections(song.videoId, map)
@@ -432,6 +443,7 @@ export function Player({ song, onBack }: Props): React.ReactElement {
   const markOne = useCallback(
     (wholeSong: boolean): void => {
       if (!beats) return
+      remember({ kind: 'beats', value: beats })
       const next = markDownbeat(beats, posRef.current, wholeSong)
       setBeats(next)
       void window.stemkit.saveBeats(song.videoId, next)
@@ -439,6 +451,25 @@ export function Player({ song, onBack }: Props): React.ReactElement {
     },
     [beats, song.videoId]
   )
+
+  const restore = (from: React.MutableRefObject<Snapshot[]>, to: React.MutableRefObject<Snapshot[]>, label: string): void => {
+    const snap = from.current[from.current.length - 1]
+    if (!snap) return setFlash(label === 'Desfeito' ? 'Nada para desfazer' : 'Nada para refazer')
+    from.current = from.current.slice(0, -1)
+    if (snap.kind === 'beats') {
+      if (beats) to.current = [...to.current, { kind: 'beats', value: beats }]
+      setBeats(snap.value)
+      void window.stemkit.saveBeats(song.videoId, snap.value)
+      setFlash(`${label}: marcação do 1`)
+    } else {
+      if (sections) to.current = [...to.current, { kind: 'sections', value: sections }]
+      setSections(snap.value)
+      void window.stemkit.saveSections(song.videoId, snap.value)
+      setFlash(`${label}: edição de seção`)
+    }
+  }
+  const undo = (): void => restore(undoRef, redoRef, 'Desfeito')
+  const redo = (): void => restore(redoRef, undoRef, 'Refeito')
 
   const loopSection = useCallback(
     (index: number): void => {
@@ -457,10 +488,12 @@ export function Player({ song, onBack }: Props): React.ReactElement {
     if (checked.sections && !sections && !sectionsBusy && !sectionsError) analyzeSections()
   }, [checked.sections])
 
+  const scrubRef = useRef<number | null>(null)
   const getPosition = useCallback((): number => {
     void bump
-    return posRef.current
+    return scrubRef.current ?? posRef.current
   }, [bump])
+  const [loopMode, setLoopMode] = useState(false)
 
   const missingStems = SEPARABLE.filter((id) => !(song.stems ?? []).includes(id))
   // guitarra/piano só saem do motor de 6 fontes: numa música separada em 4, refaz tudo
@@ -520,6 +553,14 @@ export function Player({ song, onBack }: Props): React.ReactElement {
         togglePlay()
         return
       }
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
+        e.preventDefault()
+        return e.shiftKey ? redo() : undo()
+      }
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') {
+        e.preventDefault()
+        return redo()
+      }
       if (e.ctrlKey || e.metaKey || e.altKey) return
       if (e.code === 'KeyA') markA()
       else if (e.code === 'KeyB') markB()
@@ -529,7 +570,7 @@ export function Player({ song, onBack }: Props): React.ReactElement {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [togglePlay, markA, markB, toggleLoop, toggleClick, markOne])
+  }, [togglePlay, markA, markB, toggleLoop, toggleClick, markOne, undo, redo])
 
   const toggleMute = (id: StemId): void => {
     const turningOn = !mutes.has(id)
@@ -599,6 +640,8 @@ export function Player({ song, onBack }: Props): React.ReactElement {
       onClick: analyzeSections,
       disabled: sectionsBusy
     },
+    { label: 'Desfazer (Ctrl+Z)', onClick: undo },
+    { label: 'Refazer (Ctrl+Shift+Z)', onClick: redo },
     { label: 'Marcar o 1 aqui (tecla 1)', onClick: () => markOne(false), disabled: !beats },
     { label: 'Marcar o 1 aqui, música toda (Shift+1)', onClick: () => markOne(true), disabled: !beats },
     ...(loopA !== null || loopB !== null ? [{ label: 'Limpar loop', onClick: clearLoop }] : [])
@@ -655,7 +698,11 @@ export function Player({ song, onBack }: Props): React.ReactElement {
                 loopA={loopA}
                 loopB={loopB}
                 loopOn={loopOn}
+                loopMode={loopMode}
                 onSeek={seekTo}
+                onScrub={(t) => {
+                  scrubRef.current = t
+                }}
                 onSelectLoop={(a, b) => applyLoop(a, b, true)}
               />
             </div>
@@ -735,6 +782,8 @@ export function Player({ song, onBack }: Props): React.ReactElement {
         onMaster={setMaster}
         showSections={showSections}
         onToggleSections={() => setShowSections((v) => !v)}
+        loopMode={loopMode}
+        onToggleLoopMode={() => setLoopMode((v) => !v)}
       />
 
       {notices.length > 0 && (

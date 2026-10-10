@@ -16,6 +16,8 @@ interface Props {
   onMaster: (v: number) => void
   showSections: boolean
   onToggleSections: () => void
+  loopMode: boolean
+  onToggleLoopMode: () => void
 }
 
 export function TransportBar(p: Props): React.ReactElement {
@@ -88,6 +90,13 @@ export function TransportBar(p: Props): React.ReactElement {
         </div>
       </div>
       <div className="absolute right-4 flex items-center gap-2">
+        <button
+          onClick={p.onToggleLoopMode}
+          title="Ligado: arraste na régua para marcar o loop A–B. Desligado: arrastar move a agulha"
+          className={`${pill} ${p.loopMode ? 'bg-amber-300 text-black' : 'bg-[#1e1e1e] text-white hover:bg-[#2a2a2a]'}`}
+        >
+          <LoopIcon className="w-4 h-4" /> Loop A–B
+        </button>
         <button disabled title="Letra — em breve" className={`${pill} bg-[#1e1e1e] text-white/35 cursor-not-allowed`}>
           <LyricsIcon className="w-4 h-4" /> Letra
         </button>

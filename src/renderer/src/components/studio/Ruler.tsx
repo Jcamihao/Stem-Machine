@@ -7,13 +7,15 @@ interface Props {
   loopA: number | null
   loopB: number | null
   loopOn: boolean
+  loopMode: boolean // ligado: arrastar cria o loop A–B; desligado: arrastar move a agulha
   onSeek: (seconds: number) => void
+  onScrub: (seconds: number | null) => void
   onSelectLoop: (a: number, b: number) => void
 }
 
-/* régua: um traço por batida (mais alto no "1"); clique vai para o ponto,
-   arrastar marca o trecho do loop A–B */
-export function Ruler({ duration, beats, downbeats, loopA, loopB, loopOn, onSeek, onSelectLoop }: Props): React.ReactElement {
+/* régua: um traço por batida (mais alto no "1"); clique vai para o ponto.
+   Arrastar move a agulha, ou marca o loop A–B quando o modo loop está ligado */
+export function Ruler({ duration, beats, downbeats, loopA, loopB, loopOn, loopMode, onSeek, onScrub, onSelectLoop }: Props): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const dragRef = useRef<{ x: number; t: number } | null>(null)
   const [drag, setDrag] = useState<{ a: number; b: number } | null>(null)
@@ -58,22 +60,31 @@ export function Ruler({ duration, beats, downbeats, loopA, loopB, loopOn, onSeek
 
   return (
     <div
-      className="no-drag relative h-8 cursor-pointer"
+      className={`no-drag relative h-8 ${loopMode ? 'cursor-crosshair' : 'cursor-ew-resize'}`}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId)
-        dragRef.current = { x: e.clientX, t: timeAt(e.clientX, e.currentTarget) }
+        const t = timeAt(e.clientX, e.currentTarget)
+        dragRef.current = { x: e.clientX, t }
+        if (!loopMode) onScrub(t)
       }}
       onPointerMove={(e) => {
         const start = dragRef.current
-        if (!start || Math.abs(e.clientX - start.x) < 5) return
+        if (!start) return
         const t = timeAt(e.clientX, e.currentTarget)
+        // modo agulha: só a agulha anda; o áudio pula para o ponto final ao soltar
+        if (!loopMode) return onScrub(t)
+        if (Math.abs(e.clientX - start.x) < 5) return
         setDrag({ a: Math.min(start.t, t), b: Math.max(start.t, t) })
       }}
       onPointerUp={(e) => {
         const start = dragRef.current
         dragRef.current = null
-        if (drag && drag.b - drag.a > 0.25) onSelectLoop(drag.a, drag.b)
-        else if (start) onSeek(timeAt(e.clientX, e.currentTarget))
+        const t = timeAt(e.clientX, e.currentTarget)
+        if (!loopMode) {
+          onScrub(null)
+          onSeek(t)
+        } else if (drag && drag.b - drag.a > 0.25) onSelectLoop(drag.a, drag.b)
+        else if (start) onSeek(t)
         setDrag(null)
       }}
     >
