@@ -8,7 +8,7 @@ import { useSyncExternalStore } from 'react'
 import type { AppSettings, PadSample, PadTransition } from '../../../shared/types'
 
 export const PAD_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
-export const TRANSITION_SECONDS: Record<PadTransition, number> = { fast: 1, slow: 4 }
+export const TRANSITION_SECONDS: Record<PadTransition, number> = { fast: 0.5, slow: 2 }
 const START_FADE = 2.5
 const STOP_FADE = 3
 // volume médio (RMS) que as duas fontes miram: trocar sintetizado <-> importado

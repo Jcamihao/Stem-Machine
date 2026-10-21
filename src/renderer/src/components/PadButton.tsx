@@ -75,7 +75,7 @@ export function PadButton({ className }: { className: string }): React.ReactElem
           <div className="flex gap-1.5 mb-4">
             {(['fast', 'slow'] as PadTransition[]).map((t) => (
               <button key={t} onClick={() => pad.setTransition(t)} className={seg(s.transition === t)}>
-                {t === 'fast' ? 'Rápida' : 'Lenta'} ({TRANSITION_SECONDS[t]} s)
+                {t === 'fast' ? 'Rápida' : 'Lenta'} ({TRANSITION_SECONDS[t].toLocaleString('pt-BR')} s)
               </button>
             ))}
           </div>
