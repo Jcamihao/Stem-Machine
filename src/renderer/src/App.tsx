@@ -12,6 +12,7 @@ import { Setup } from './components/Setup'
 import { Settings } from './components/Settings'
 import { About } from './components/About'
 import { LogoMark } from './components/Icons'
+import { pad } from './lib/pad'
 
 interface EnvLog {
   message: string
@@ -92,6 +93,11 @@ export default function App(): React.ReactElement {
       offSettings()
     }
   }, [])
+
+  // o pad vive fora do player: preferências e saída L/R vêm daqui
+  useEffect(() => {
+    if (settings) pad.applySettings(settings)
+  }, [settings])
 
   useEffect(() => {
     if (status?.ready && envLogs.length > 0) {

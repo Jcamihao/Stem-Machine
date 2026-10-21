@@ -17,6 +17,7 @@ import { SectionBar } from './SectionBar'
 import { ChordNow, ChordStrip } from './studio/ChordStrip'
 import { formatChord } from '../lib/chords'
 import { detectKey, keyName } from '../../../shared/key'
+import { pad } from '../lib/pad'
 
 export type ClickFactor = 0.5 | 1 | 2
 
@@ -726,6 +727,11 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   const clickGrid = beats ? applyFactor(beats, clickFactor) : null
   // tom da música (dos acordes, inclusive os corrigidos à mão)
   const musicKey = useMemo(() => (chords ? detectKey(chords.chords) : null), [chords])
+  // o painel do pad destaca o tom da música (já transposto); o pad não muda sozinho
+  useEffect(() => {
+    pad.setSongKey(musicKey ? (((musicKey.tonic + semitones) % 12) + 12) % 12 : null)
+  }, [musicKey, semitones])
+  useEffect(() => () => pad.setSongKey(null), [])
   const exportItems: MenuItem[] = [
     { label: 'Exportar todas as faixas', onClick: exportAllStems, disabled: decoding || !!addProgress },
     ...stemMeta.map((meta) => ({

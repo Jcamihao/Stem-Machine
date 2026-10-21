@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { SongThumb } from '../../lib/thumbs'
 import { MetronomeIcon } from '../Icons'
+import { PadButton } from '../PadButton'
 import { BackIcon, SplitIcon, TuneIcon, MeterIcon, ExportIcon, MoreIcon, ChevronIcon } from './icons'
 
 export interface MenuItem {
@@ -213,6 +214,7 @@ export function StudioHeader(p: Props): React.ReactElement {
         <div className={chip} title="Compasso">
           <MeterIcon className="w-[18px] h-[18px]" /> {p.beatsPerBar ? `${p.beatsPerBar}/4` : '—'}
         </div>
+        <PadButton className={chip} />
         {p.outputSplit && (
           <div
             className="h-9 px-3 rounded-md bg-amber-300 text-black text-[12px] font-bold flex items-center"

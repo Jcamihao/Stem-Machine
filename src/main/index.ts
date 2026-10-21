@@ -34,6 +34,7 @@ import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUD
 import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addStems, analyzeSections, analyzeChords } from './pipeline'
 import { initUpdater } from './updater'
 import { guideClips } from './voice'
+import { listPads, importPad, updatePad, removePad, readPad } from './pads'
 import { detectKey, keyName } from '../shared/key'
 import { runSmoke } from './smoke'
 import { getThumb, clearThumbMemo } from './thumbs'
@@ -180,8 +181,13 @@ async function createWindow(): Promise<void> {
     }
   })
 
+  // STEM_MACHINE_HIDDEN=1: teste por CDP sem atrapalhar o desktop — a janela abre fora
+  // da tela, sem foco e fora da barra de tarefas (oculta de vez ela para de pintar)
   mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
+    if (!process.env.STEM_MACHINE_HIDDEN) return mainWindow?.show()
+    mainWindow?.setSkipTaskbar(true)
+    mainWindow?.setPosition(-5000, -5000)
+    mainWindow?.showInactive()
   })
 
   mainWindow.on('closed', () => {
@@ -270,6 +276,11 @@ app.whenReady().then(async () => {
     writeFileSync(join(stemsDir(videoId), `${stem}.wav`), Buffer.from(wav))
   })
   ipcMain.handle('voice:clips', () => guideClips())
+  ipcMain.handle('pads:list', () => listPads())
+  ipcMain.handle('pads:import', () => importPad())
+  ipcMain.handle('pads:update', (_e, id: string, patch: { key?: number }) => updatePad(id, patch))
+  ipcMain.handle('pads:remove', (_e, id: string) => removePad(id))
+  ipcMain.handle('pads:read', (_e, id: string) => readPad(id))
   ipcMain.handle('stems:add', (_e, videoId: string, stems: string[]) => {
     void addStems(videoId, stems)
   })

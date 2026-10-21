@@ -41,6 +41,22 @@ export interface AppSettings {
   exportFormat: 'wav' | 'aac'
   // playback: click e guia em mono no canal L (retorno), música em mono no R (PA)
   outputSplit: boolean
+  // pad contínuo (lib/pad.ts): 'synth' ou o id de um pad importado; tom 0 = C ... 11 = B
+  padSource: string
+  padKey: number
+  padVolume: number // 0..1
+  padBrightness: number // 0..1 (filtro: escuro -> aberto)
+  padTransition: PadTransition
+}
+
+export type PadTransition = 'fast' | 'slow'
+
+// pad importado: arquivo copiado para a pasta pads, com o tom em que ele foi gravado
+export interface PadSample {
+  id: string
+  name: string
+  key: number // 0 = C ... 11 = B
+  file: string
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -50,7 +66,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   gpuSplit: false,
   hideVideo: false,
   exportFormat: 'wav',
-  outputSplit: false
+  outputSplit: false,
+  padSource: 'synth',
+  padKey: 0,
+  padVolume: 0.7,
+  padBrightness: 0.75,
+  padTransition: 'slow'
 }
 
 export interface EngineStatus {
@@ -173,6 +194,11 @@ export interface StemKitApi {
   saveBeats(videoId: string, grid: BeatGrid): Promise<void>
   saveGenerated(videoId: string, stem: 'click' | 'guide', wav: Uint8Array): Promise<void>
   getGuideClips(): Promise<Record<string, Uint8Array>>
+  listPads(): Promise<PadSample[]>
+  importPad(): Promise<PadSample | null>
+  updatePad(id: string, patch: { key?: number }): Promise<PadSample[]>
+  removePad(id: string): Promise<PadSample[]>
+  readPad(id: string): Promise<Uint8Array>
   addStems(videoId: string, stems: string[]): Promise<void>
   getSections(videoId: string): Promise<SectionMap | null>
   libraryMeta(): Promise<Record<string, { bpm: number | null; key: string | null }>>

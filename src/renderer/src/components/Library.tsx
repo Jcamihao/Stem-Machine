@@ -3,6 +3,7 @@ import type { Song } from '../../../shared/types'
 import { isLocalId } from '../../../shared/local'
 import { SongThumb } from '../lib/thumbs'
 import { MoreIcon } from './studio/icons'
+import { PadButton } from './PadButton'
 
 type SortKey = 'date' | 'title' | 'bpm' | 'duration'
 
@@ -161,6 +162,7 @@ export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd,
             <path d="M8 4v16m0 0-4-4m4 4 4-4M16 20V4m0 0-4 4m4-4 4 4" />
           </svg>
         </button>
+        <PadButton className="no-drag flex items-center gap-2 h-8 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]" />
         <button onClick={onOpenSettings} title="Configurações" className="no-drag w-8 h-8 rounded-md bg-[#1e1e1e] text-white/80 hover:text-white flex items-center justify-center">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
             <circle cx="12" cy="12" r="3" />
