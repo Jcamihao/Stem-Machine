@@ -126,6 +126,15 @@ export function PadButton({ className }: { className: string }): React.ReactElem
               </button>
             </div>
           )}
+          {sample && s.detected?.id === sample.id && (
+            <p className="text-[11px] mb-2 text-white/45">
+              {s.detected.key === null
+                ? 'Não consegui detectar o tom — escolha acima.'
+                : s.detected.key === sample.key
+                  ? `Detectado: ${PAD_NOTES[s.detected.key]} (${s.detected.how === 'name' ? 'pelo nome do arquivo' : 'pelo áudio'}). Se estiver errado, corrija acima.`
+                  : 'Tom corrigido por você.'}
+            </p>
+          )}
           {s.loading && <p className="text-[12px] text-white/50 mb-2">Carregando o pad…</p>}
           {s.error && <p className="text-[12px] text-rose-300 mb-2">{s.error}</p>}
 

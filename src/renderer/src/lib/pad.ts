@@ -6,6 +6,7 @@
 // Troca de tom/fonte = crossfade de potência constante entre duas vozes.
 import { useSyncExternalStore } from 'react'
 import type { AppSettings, PadSample, PadTransition } from '../../../shared/types'
+import { keyFromAudio, keyFromName } from './padKey'
 
 export const PAD_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 export const TRANSITION_SECONDS: Record<PadTransition, number> = { fast: 0.5, slow: 2 }
@@ -29,6 +30,8 @@ export interface PadState {
   loading: boolean
   error: string | null
   songKey: number | null // tom da música aberta no player (só destaque visual)
+  // resultado da detecção do tom no último import (o painel mostra "Detectado: D")
+  detected: { id: string; key: number | null; how: 'name' | 'audio' | null } | null
 }
 
 interface Voice {
@@ -224,7 +227,8 @@ class PadEngine {
     samples: [],
     loading: false,
     error: null,
-    songKey: null
+    songKey: null,
+    detected: null
   }
   private listeners = new Set<() => void>()
   private ctx: AudioContext | null = null
@@ -462,10 +466,37 @@ class PadEngine {
     try {
       const pad = await window.stemkit.importPad()
       if (!pad) return
-      this.set({ samples: [...this.state.samples, pad] })
+      this.set({ samples: [...this.state.samples, pad], loading: true, error: null })
+      // tom do arquivo: pelo nome; se o nome não diz, pelo áudio
+      let key = keyFromName(pad.name)
+      let how: 'name' | 'audio' | null = key === null ? null : 'name'
+      if (key === null) {
+        key = await this.detectFromAudio(pad.id)
+        if (key !== null) how = 'audio'
+      }
+      if (key !== null && key !== pad.key) this.set({ samples: await window.stemkit.updatePad(pad.id, { key }) })
+      this.set({ detected: { id: pad.id, key, how }, loading: false })
       await this.setSource(pad.id)
     } catch {
       this.set({ error: 'Não consegui importar esse arquivo.' })
+    }
+  }
+
+  // decodifica fora do contexto que toca (não liga nada) e analisa o trecho do loop
+  private async detectFromAudio(id: string): Promise<number | null> {
+    try {
+      const bytes = await window.stemkit.readPad(id)
+      const copy = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+      const buf = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(copy)
+      const mono = new Float32Array(buf.length)
+      for (let c = 0; c < buf.numberOfChannels; c++) {
+        const d = buf.getChannelData(c)
+        for (let i = 0; i < d.length; i++) mono[i] += d[i] / buf.numberOfChannels
+      }
+      const region = loopRegion(buf)
+      return keyFromAudio(mono, buf.sampleRate, region.start, region.end)
+    } catch {
+      return null
     }
   }
 
