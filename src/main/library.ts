@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync, rmSync, mkdirSync, openSync, r
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { userDataDir } from './env'
-import { DEFAULT_STEMS, type BeatGrid, type ChordMap, type SectionMap, type Song } from '../shared/types'
+import { DEFAULT_STEMS, type BeatGrid, type ChordMap, type MixState, type SectionMap, type Song } from '../shared/types'
 
 // drives both the file-dialog filter and the pre-flight extension check in
 // startLocalJob; anything here is fair game for ffmpeg to decode
@@ -94,6 +94,26 @@ export function loadBeats(videoId: string): BeatGrid | null {
 // grade corrigida pelo usuário ("marcar o 1")
 export function saveBeats(videoId: string, grid: BeatGrid): void {
   writeFileSync(beatsPath(videoId), JSON.stringify(grid))
+}
+
+// mixagem do usuário nesta música (volumes, mudos, pan, EQ, velocidade, tom...)
+export function mixPath(videoId: string): string {
+  return join(songDir(videoId), 'mix.json')
+}
+
+export function loadMix(videoId: string): MixState | null {
+  try {
+    const data = JSON.parse(readFileSync(mixPath(videoId), 'utf8'))
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : null
+  } catch {
+    return null
+  }
+}
+
+// null = volta ao padrão (apaga o arquivo)
+export function saveMix(videoId: string, mix: MixState | null): void {
+  if (!mix) rmSync(mixPath(videoId), { force: true })
+  else writeFileSync(mixPath(videoId), JSON.stringify(mix))
 }
 
 export function rawDownloadPath(videoId: string): string {

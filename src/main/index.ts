@@ -12,7 +12,7 @@ import { existsSync, copyFileSync, mkdirSync, createReadStream, statSync, writeF
 import { spawn } from 'child_process'
 import { createServer, type Server } from 'http'
 import type { AddressInfo } from 'net'
-import type { AppSettings, BeatGrid, ChordMap, SectionMap } from '../shared/types'
+import type { AppSettings, BeatGrid, ChordMap, MixState, SectionMap } from '../shared/types'
 import {
   detectTools,
   bootstrap,
@@ -30,7 +30,7 @@ import {
   getStatus
 } from './env'
 import { loadSettings, saveSettings } from './settings'
-import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUDIO_EXTENSIONS, loadBeats, saveBeats, loadSections, saveSections, loadChords, saveChords } from './library'
+import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUDIO_EXTENSIONS, loadBeats, saveBeats, loadSections, saveSections, loadChords, saveChords, loadMix, saveMix } from './library'
 import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addStems, analyzeSections, analyzeChords } from './pipeline'
 import { initUpdater } from './updater'
 import { guideClips } from './voice'
@@ -276,6 +276,11 @@ app.whenReady().then(async () => {
     writeFileSync(join(stemsDir(videoId), `${stem}.wav`), Buffer.from(wav))
   })
   ipcMain.handle('voice:clips', () => guideClips())
+  ipcMain.handle('song:mix', (_e, videoId: string) => (inLibrary(videoId) ? loadMix(videoId) : null))
+  ipcMain.handle('mix:save', (_e, videoId: string, mix: MixState | null) => {
+    if (!inLibrary(videoId)) throw new Error('Song not found')
+    saveMix(videoId, mix)
+  })
   ipcMain.handle('pads:list', () => listPads())
   ipcMain.handle('pads:import', () => importPad())
   ipcMain.handle('pads:update', (_e, id: string, patch: { key?: number }) => updatePad(id, patch))

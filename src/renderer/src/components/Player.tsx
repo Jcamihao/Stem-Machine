@@ -18,6 +18,7 @@ import { ChordNow, ChordStrip } from './studio/ChordStrip'
 import { formatChord } from '../lib/chords'
 import { detectKey, keyName } from '../../../shared/key'
 import { pad } from '../lib/pad'
+import { buildMix, parseMix } from '../lib/mix'
 
 export type ClickFactor = 0.5 | 1 | 2
 
@@ -98,6 +99,11 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   const [mutes, setMutes] = useState<Set<StemId>>(new Set())
   const [solos, setSolos] = useState<Set<StemId>>(new Set())
   const [master, setMaster] = useState(0.9)
+  // mixagem salva: só grava depois de restaurar a da música aberta
+  const mixReadyRef = useRef(false)
+  const mixPendingRef = useRef<{ id: string; json: string | null } | null>(null)
+  const mixTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mixSavedRef = useRef<{ id: string; json: string | null } | null>(null)
   const [pans, setPans] = useState<Partial<Record<StemId, number>>>({})
   const [eqs, setEqs] = useState<Partial<Record<StemId, Eq>>>({})
   const [showSections, setShowSections] = useState(true)
@@ -136,6 +142,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   // streaming it from YouTube (and switches thumbnails to the local cache)
 
   useEffect(() => {
+    mixReadyRef.current = false
     posRef.current = 0
     setPlaying(false)
     playingRef.current = false
@@ -196,12 +203,32 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
       setChecked((c) => ({ ...c, sections: true }))
     })
     setDecoding(true)
-    getDecoded(song)
-      .then((decoded) => {
+    const savedMix = window.stemkit.getMix(song.videoId).catch(() => null)
+    Promise.all([getDecoded(song), savedMix])
+      .then(([decoded, raw]) => {
         if (cancelled) return
+        const mix = parseMix(raw)
         setBuffers(decoded)
         engine.setBuffers(decoded)
-        setVols(Object.fromEntries(Object.keys(decoded).map((id) => [id, 1])))
+        setVols({ ...Object.fromEntries(Object.keys(decoded).map((id) => [id, 1])), ...mix.vols })
+        setMutes(mix.mutes as Set<StemId>)
+        setSolos(mix.solos as Set<StemId>)
+        setPans(mix.pans)
+        setEqs(mix.eqs)
+        setMaster(mix.master)
+        setSpeed(mix.speed)
+        setSemitones(mix.semitones)
+        setTuningHz(mix.tuningHz)
+        setClickFactor(mix.clickFactor as ClickFactor)
+        // o motor guarda pan/EQ da música anterior: zera o que não veio salvo
+        for (const id of [...Object.keys(decoded), 'click', 'guide'] as StemId[]) {
+          engine.setPan(id, mix.pans[id] ?? 0)
+          const eq = mix.eqs[id] ?? FLAT_EQ
+          engine.setEq(id, eq.low, eq.mid, eq.high)
+        }
+        const restored = buildMix(mix)
+        mixSavedRef.current = { id: song.videoId, json: restored ? JSON.stringify(restored) : null }
+        mixReadyRef.current = true
         const d = engine.trackDuration()
         if (d > 0) setDuration(d)
         setDecoding(false)
@@ -230,6 +257,45 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   useEffect(() => {
     for (const [id, eq] of Object.entries(eqs)) if (eq) engine.setEq(id as StemId, eq.low, eq.mid, eq.high)
   }, [eqs])
+
+  // grava a mixagem 0,5 s depois do último ajuste; ao sair da música grava na hora
+  const flushMix = useCallback((): void => {
+    if (mixTimerRef.current) clearTimeout(mixTimerRef.current)
+    mixTimerRef.current = null
+    const pending = mixPendingRef.current
+    mixPendingRef.current = null
+    if (!pending || (mixSavedRef.current?.id === pending.id && mixSavedRef.current.json === pending.json)) return
+    mixSavedRef.current = pending
+    void window.stemkit.saveMix(pending.id, pending.json ? JSON.parse(pending.json) : null).catch(() => {})
+  }, [])
+  useEffect(() => {
+    if (!mixReadyRef.current) return
+    const json = JSON.stringify(
+      buildMix({ vols, mutes, solos, pans, eqs, master, speed, semitones, tuningHz, clickFactor })
+    )
+    mixPendingRef.current = { id: song.videoId, json: json === 'null' ? null : json }
+    if (mixTimerRef.current) clearTimeout(mixTimerRef.current)
+    mixTimerRef.current = setTimeout(flushMix, 500)
+  }, [vols, mutes, solos, pans, eqs, master, speed, semitones, tuningHz, clickFactor])
+  useEffect(() => flushMix, [song.videoId])
+
+  // volta tudo ao padrão e apaga o mix.json (o autosave vê "padrão" e não regrava)
+  const resetMix = (): void => {
+    setVols(Object.fromEntries(Object.keys(buffers).map((id) => [id, 1])))
+    setMutes(new Set())
+    setSolos(new Set())
+    setPans({})
+    setEqs({})
+    setMaster(0.9)
+    setSpeed(1)
+    setSemitones(0)
+    setTuningHz(440)
+    setClickFactor(1)
+    for (const id of Object.keys(buffers) as StemId[]) {
+      engine.setPan(id, 0)
+      engine.setEq(id, FLAT_EQ.low, FLAT_EQ.mid, FLAT_EQ.high)
+    }
+  }
 
   const outputSplit = !!settings?.outputSplit
   useEffect(() => {
@@ -752,6 +818,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
       onClick: analyzeSections,
       disabled: sectionsBusy
     },
+    { label: 'Redefinir mixagem desta música', onClick: resetMix },
     {
       label: outputSplit ? 'Saída L/R: ligada (desligar)' : 'Saída L/R: click e guia no L, música no R',
       onClick: () => void window.stemkit.setSettings({ outputSplit: !outputSplit })

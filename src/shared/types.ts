@@ -49,6 +49,20 @@ export interface AppSettings {
   padTransition: PadTransition
 }
 
+// mixagem salva por música (mix.json): só o que difere do padrão
+export interface MixState {
+  vols?: Record<string, number>
+  mutes?: string[]
+  solos?: string[]
+  pans?: Record<string, number>
+  eqs?: Record<string, { low: number; mid: number; high: number }>
+  master?: number
+  speed?: number
+  semitones?: number
+  tuningHz?: number
+  clickFactor?: number
+}
+
 export type PadTransition = 'fast' | 'slow'
 
 // pad importado: arquivo copiado para a pasta pads, com o tom em que ele foi gravado
@@ -194,6 +208,8 @@ export interface StemKitApi {
   saveBeats(videoId: string, grid: BeatGrid): Promise<void>
   saveGenerated(videoId: string, stem: 'click' | 'guide', wav: Uint8Array): Promise<void>
   getGuideClips(): Promise<Record<string, Uint8Array>>
+  getMix(videoId: string): Promise<MixState | null>
+  saveMix(videoId: string, mix: MixState | null): Promise<void>
   listPads(): Promise<PadSample[]>
   importPad(): Promise<PadSample | null>
   updatePad(id: string, patch: { key?: number }): Promise<PadSample[]>
