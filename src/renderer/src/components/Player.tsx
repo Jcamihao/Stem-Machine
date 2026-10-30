@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom'
 import type { AppSettings, BeatGrid, ChordMap, Section, SectionMap, Song, StemId } from '../../../shared/types'
 import { engine, decodePayload, isAudible, renderClick, type BufferMap } from '../lib/engine'
 import { encodeWav } from '../lib/wav'
-import { decodeGuideClips, renderGuide, type GuideClips } from '../lib/guide'
+import { decodeGuideClips, renderGuide, sectionEntry, type GuideClips } from '../lib/guide'
+import { nextDownbeat } from '../lib/jump'
+import { registerCommandHandler, runCommand, type Command } from '../lib/commands'
 import { markDownbeat } from '../lib/edits'
 import { fmtTime } from '../lib/format'
 import { buildStemMeta, STEM_INFO } from '../lib/stems'
@@ -104,6 +106,14 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   const mixPendingRef = useRef<{ id: string; json: string | null } | null>(null)
   const mixTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mixSavedRef = useRef<{ id: string; json: string | null } | null>(null)
+  // parte escolhida esperando a virada do compasso (pisca na barra de seções)
+  const [pendingSection, setPendingSection] = useState<number | null>(null)
+  const pendingRef = useRef<number | null>(null)
+  const clearPending = useCallback((): void => {
+    if (pendingRef.current === null) return
+    pendingRef.current = null
+    setPendingSection(null)
+  }, [])
   const [pans, setPans] = useState<Partial<Record<StemId, number>>>({})
   const [eqs, setEqs] = useState<Partial<Record<StemId, Eq>>>({})
   const [showSections, setShowSections] = useState(true)
@@ -143,6 +153,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
 
   useEffect(() => {
     mixReadyRef.current = false
+    clearPending()
     posRef.current = 0
     setPlaying(false)
     playingRef.current = false
@@ -412,6 +423,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     let raf = 0
     const tick = (): void => {
       posRef.current = engine.expected()
+      if (pendingRef.current !== null && engine.jumpPending() === null) clearPending()
 
       const dur = engine.trackDuration()
       if (dur > 0 && posRef.current >= dur - 0.03) {
@@ -441,6 +453,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     if (decoding || decodeError) return
     if (playingRef.current) {
       playingRef.current = false
+      clearPending()
       engine.setPlaying(false, posRef.current)
       setPlaying(false)
     } else {
@@ -455,10 +468,11 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     (t: number): void => {
       const clamped = Math.max(0, Math.min(duration > 0 ? duration - 0.05 : t, t))
       posRef.current = clamped
+      clearPending()
       engine.setPlaying(playingRef.current, clamped)
       setBump((n) => n + 1)
     },
-    [duration]
+    [duration, clearPending]
   )
 
   const applyLoop = useCallback((a: number | null, b: number | null, on: boolean): void => {
@@ -647,6 +661,70 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     [sections, applyLoop]
   )
 
+  // ir para uma parte: tocando, espera a virada do compasso e salta sem cortar (o salto é
+  // agendado no relógio do áudio); parado, com "na hora" ou sem batidas, salta direto.
+  // Loop A-B ligado: sai do loop e salta direto
+  const sectionSwitch = settings?.sectionSwitch ?? 'bar'
+  const goToSection = useCallback(
+    (index: number): void => {
+      const s = sections?.sections[index]
+      if (!s) return
+      const target = (beats ? sectionEntry(s.start, beats) : null) ?? s.start
+      if (loopOn) applyLoop(null, null, false)
+      if (!playingRef.current || loopOn || sectionSwitch === 'now' || !beats) return seekTo(target)
+      const at = nextDownbeat(beats.downbeats, engine.expected())
+      if (at !== null && engine.scheduleJump(at, target)) {
+        pendingRef.current = index
+        setPendingSection(index)
+      } else seekTo(target)
+    },
+    [sections, beats, loopOn, sectionSwitch, applyLoop, seekTo]
+  )
+
+  const stepSemitones = (d: number): void => setSemitones((prev) => Math.max(-12, Math.min(12, prev + d)))
+  // 1 BPM por passo, velocidade entre 50% e 150%
+  const stepBpm = (d: number): void => {
+    const base = beats ? beats.bpm * clickFactor : 0
+    if (base > 0) setSpeed((prev) => Math.max(0.5, Math.min(1.5, (Math.round(base * prev) + d) / base)))
+  }
+
+  // comandos de qualquer origem (teclado, depois celular e MIDI) caem aqui enquanto o player está aberto
+  const commandRef = useRef<(c: Command) => boolean>(() => false)
+  commandRef.current = (c) => {
+    switch (c.type) {
+      case 'toggle':
+        togglePlay()
+        return true
+      case 'play':
+        if (!playingRef.current) togglePlay()
+        return true
+      case 'pause':
+        if (playingRef.current) togglePlay()
+        return true
+      case 'seek':
+        seekTo(c.time)
+        return true
+      case 'goToSection':
+        goToSection(c.index)
+        return true
+      case 'loopSection':
+        loopSection(c.index)
+        return true
+      case 'semitones':
+        stepSemitones(c.delta)
+        return true
+      case 'bpm':
+        stepBpm(c.delta)
+        return true
+      case 'click':
+        toggleClick()
+        return true
+      default:
+        return false
+    }
+  }
+  useEffect(() => registerCommandHandler((c) => commandRef.current(c)), [])
+
   // música sem batidas ou sem seções (separada antes, ou a detecção falhou): detecta
   // sozinho uma vez ao abrir; se der erro, fica o aviso e o menu ⋮ para tentar de novo
   useEffect(() => {
@@ -721,7 +799,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
       if (e.target instanceof HTMLInputElement) return
       if (e.code === 'Space') {
         e.preventDefault()
-        togglePlay()
+        runCommand({ type: 'toggle' })
         return
       }
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
@@ -736,12 +814,12 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
       if (e.code === 'KeyA') markA()
       else if (e.code === 'KeyB') markB()
       else if (e.code === 'KeyL') toggleLoop()
-      else if (e.code === 'KeyC') toggleClick()
+      else if (e.code === 'KeyC') runCommand({ type: 'click' })
       else if (e.code === 'Digit1' || e.code === 'Numpad1') markOne(e.shiftKey)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [togglePlay, markA, markB, toggleLoop, toggleClick, markOne, undo, redo])
+  }, [markA, markB, toggleLoop, markOne, undo, redo])
 
   const toggleMute = (id: StemId): void => {
     const turningOn = !mutes.has(id)
@@ -820,6 +898,10 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
     },
     { label: 'Redefinir mixagem desta música', onClick: resetMix },
     {
+      label: sectionSwitch === 'bar' ? 'Trocar de parte: no compasso (mudar para na hora)' : 'Trocar de parte: na hora (mudar para no compasso)',
+      onClick: () => void window.stemkit.setSettings({ sectionSwitch: sectionSwitch === 'bar' ? 'now' : 'bar' })
+    },
+    {
       label: outputSplit ? 'Saída L/R: ligada (desligar)' : 'Saída L/R: click e guia no L, música no R',
       onClick: () => void window.stemkit.setSettings({ outputSplit: !outputSplit })
     },
@@ -857,14 +939,10 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
         baseBpm={beats ? beats.bpm * clickFactor : null}
         speed={speed}
         onSpeed={setSpeed}
-        onBpmStep={(d) => {
-          // 1 BPM por clique, velocidade entre 50% e 150%
-          const base = beats ? beats.bpm * clickFactor : 0
-          if (base > 0) setSpeed((prev) => Math.max(0.5, Math.min(1.5, (Math.round(base * prev) + d) / base)))
-        }}
+        onBpmStep={stepBpm}
         semitones={semitones}
         onSemitones={setSemitones}
-        onSemitoneStep={(d) => setSemitones((prev) => Math.max(-12, Math.min(12, prev + d)))}
+        onSemitoneStep={stepSemitones}
         tuningHz={tuningHz}
         onTuning={setTuningHz}
         keyLabel={musicKey ? keyName(musicKey, semitones) : null}
@@ -894,7 +972,8 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
                   duration={duration}
                   downbeats={beats?.downbeats ?? []}
                   getPosition={getPosition}
-                  onSeek={seekTo}
+                  onGoTo={goToSection}
+                  pendingIndex={pendingSection}
                   onChange={updateSections}
                   onLoop={loopSection}
                 />

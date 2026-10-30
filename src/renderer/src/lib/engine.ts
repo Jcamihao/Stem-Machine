@@ -83,6 +83,9 @@ export class StemEngine {
   private splitOut: GainNode | null = null
   private split = false
   private sources: AudioBufferSourceNode[] = []
+  // salto agendado (troca de parte na virada do compasso): fontes novas já programadas
+  // para entrar em `at` (relógio do áudio); as atuais param nesse mesmo instante
+  private pending: { at: number; to: number; incoming: AudioBufferSourceNode[] } | null = null
   private playing = false
   private anchorYt = 0
   private anchorCtx = 0
@@ -305,8 +308,15 @@ export class StemEngine {
     if (this.looping() && time >= this.loopB!) time = this.loopA!
     this.anchorYt = time
     if (!this.ctx || !this.playing || !this.hasBuffers()) return
-    const ctx = this.ctx
-    const startAt = ctx.currentTime + 0.04
+    const startAt = this.ctx.currentTime + 0.04
+    this.sources = this.makeSources(time, startAt)
+    this.anchorCtx = startAt
+  }
+
+  // uma fonte por faixa, começando em `startAt` (relógio do áudio) no ponto `time` da música
+  private makeSources(time: number, startAt: number): AudioBufferSourceNode[] {
+    const ctx = this.ctx!
+    const out: AudioBufferSourceNode[] = []
     for (const id of Object.keys(this.buffers) as StemId[]) {
       const buf = this.buffers[id]
       if (!buf) continue
@@ -323,13 +333,68 @@ export class StemEngine {
       }
       src.connect(gain)
       src.start(startAt, Math.min(Math.max(0, time / k), Math.max(0, buf.duration - 0.01)))
-      this.sources.push(src)
+      out.push(src)
     }
-    this.anchorCtx = startAt
+    return out
+  }
+
+  /* salto sem corte: quando a música chegar em `at` (segundos da música, ex.: o
+     próximo "1"), passa para `target`. Agendado no relógio do áudio, não em
+     setTimeout: cai no mesmo instante em todas as faixas. false = não deu
+     (parado, sem faixas, loop A-B ligado): quem chama salta na hora. Qualquer
+     align (velocidade, loop, parar) cancela o salto */
+  scheduleJump(at: number, target: number): boolean {
+    const ctx = this.ctx
+    if (!ctx || !this.playing || !this.hasBuffers() || this.looping()) return false
+    const now = this.expected()
+    const startAt = ctx.currentTime + Math.max(0.05, (at - now) / this.rate)
+    if (this.pending) this.dropIncoming()
+    for (const s of this.sources) {
+      try {
+        s.stop(startAt) // a última chamada vale: troca o instante de um salto anterior
+      } catch {}
+    }
+    this.pending = { at: startAt, to: target, incoming: this.makeSources(target, startAt) }
+    return true
+  }
+
+  // posição de destino do salto ainda por vir (null = nenhum)
+  jumpPending(): number | null {
+    this.settle()
+    return this.pending ? this.pending.to : null
+  }
+
+  private dropIncoming(): void {
+    if (!this.pending) return
+    for (const s of this.pending.incoming) {
+      try {
+        s.stop()
+      } catch {}
+      try {
+        s.disconnect()
+      } catch {}
+    }
+    this.pending = null
+  }
+
+  // chegou a hora do salto: as fontes novas viram as atuais e a âncora acompanha
+  private settle(): void {
+    const p = this.pending
+    if (!p || !this.ctx || this.ctx.currentTime < p.at) return
+    for (const s of this.sources) {
+      try {
+        s.disconnect()
+      } catch {}
+    }
+    this.sources = p.incoming
+    this.anchorYt = p.to
+    this.anchorCtx = p.at
+    this.pending = null
   }
 
   expected(): number {
     if (!this.ctx || !this.playing) return this.anchorYt
+    this.settle()
     const raw = this.anchorYt + (this.ctx.currentTime - this.anchorCtx) * this.rate
     if (this.looping() && raw >= this.loopB!) {
       return this.loopA! + ((raw - this.loopA!) % (this.loopB! - this.loopA!))
@@ -375,6 +440,7 @@ export class StemEngine {
   }
 
   private stopSources(): void {
+    this.dropIncoming()
     for (const s of this.sources) {
       try {
         s.stop()

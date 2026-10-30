@@ -24,14 +24,15 @@ interface Props {
   duration: number
   downbeats: number[] // a borda arrastada e a divisão grudam no "1" do click
   getPosition: () => number
-  onSeek: (seconds: number) => void
+  onGoTo: (index: number) => void // clique: vai para a parte (na virada do compasso, tocando)
+  pendingIndex?: number | null // parte escolhida esperando a virada do compasso
   onChange: (sections: Section[]) => void
   onLoop: (index: number) => void
 }
 
 /* faixa das seções acima da régua: clique vai para a seção; arrastar a borda
    esquerda move o começo; botão direito: loop, dividir, juntar, excluir, renomear */
-export function SectionBar({ sections, duration, downbeats, getPosition, onSeek, onChange, onLoop }: Props): React.ReactElement {
+export function SectionBar({ sections, duration, downbeats, getPosition, onGoTo, pendingIndex = null, onChange, onLoop }: Props): React.ReactElement {
   const [menu, setMenu] = useState<{ index: number; x: number; y: number } | null>(null)
   const [drag, setDrag] = useState<{ index: number; t: number } | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
@@ -61,13 +62,13 @@ export function SectionBar({ sections, duration, downbeats, getPosition, onSeek,
               style={{ left: `${pct(s.start)}%`, width: `calc(${pct(s.end) - pct(s.start)}% - 2px)` }}
             >
               <button
-                onClick={() => onSeek(s.start)}
+                onClick={() => onGoTo(i)}
                 onContextMenu={(e) => {
                   e.preventDefault()
                   setMenu({ index: i, x: e.clientX, y: e.clientY })
                 }}
-                title={`${name} — clique: ir para cá · arraste a borda esquerda para mover · botão direito: editar`}
-                className="no-drag w-full h-full rounded-md text-[10px] font-semibold px-1.5 truncate text-left opacity-85 hover:opacity-100"
+                title={`${name} — clique: ir para cá (tocando, na virada do compasso) · arraste a borda esquerda para mover · botão direito: editar`}
+                className={`no-drag w-full h-full rounded-md text-[10px] font-semibold px-1.5 truncate text-left hover:opacity-100 ${pendingIndex === i ? 'animate-pulse opacity-100 ring-1 ring-white/70' : 'opacity-85'}`}
                 style={{ background: `${color}2e`, borderLeft: `2px solid ${color}`, color }}
               >
                 {name}

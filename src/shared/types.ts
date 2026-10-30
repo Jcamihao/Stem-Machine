@@ -47,6 +47,8 @@ export interface AppSettings {
   padVolume: number // 0..1
   padBrightness: number // 0..1 (filtro: escuro -> aberto)
   padTransition: PadTransition
+  // clique numa parte: 'bar' espera a virada do compasso (tocando), 'now' salta na hora
+  sectionSwitch: 'bar' | 'now'
 }
 
 // mixagem salva por música (mix.json): só o que difere do padrão
@@ -85,7 +87,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   padKey: 0,
   padVolume: 0.7,
   padBrightness: 0.75,
-  padTransition: 'slow'
+  padTransition: 'slow',
+  sectionSwitch: 'bar'
 }
 
 export interface EngineStatus {
