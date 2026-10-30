@@ -184,6 +184,28 @@ export default function App(): React.ReactElement {
     void window.stemkit.saveScenes(next).then(setScenes)
   }, [])
 
+  // pad entre músicas: entra no tom da música que a cena abriu e some quando ela der play.
+  // padGen invalida o pedido se você der play antes de o tom chegar
+  const padFromScene = useRef(false)
+  const padGen = useRef(0)
+  const settingsRef = useRef(settings) // stepScene é memorizado: lê sempre a configuração atual
+  settingsRef.current = settings
+  const padForSong = (videoId: string): void => {
+    if (!settingsRef.current?.padBetween) return
+    const gen = ++padGen.current
+    void window.stemkit.songPadKey(videoId).then((key) => {
+      if (key === null || gen !== padGen.current) return
+      padFromScene.current = true
+      void pad.playKey(key)
+    })
+  }
+  const onSongPlayStart = (): void => {
+    padGen.current++
+    if (!padFromScene.current) return
+    padFromScene.current = false
+    pad.stop()
+  }
+
   const playScene = (scene: Scene): void => {
     const exists = (id: string): boolean => songs.some((s) => s.videoId === id)
     const first = scene.songs.findIndex(exists)
@@ -193,6 +215,7 @@ export default function App(): React.ReactElement {
     setAutoPlay(false)
     setActiveScene({ id: scene.id, index: first })
     setActiveId(scene.songs[first])
+    padForSong(scene.songs[first])
   }
 
   // próxima/anterior música da cena em andamento (ignora as que saíram da biblioteca)
@@ -205,6 +228,7 @@ export default function App(): React.ReactElement {
       setAutoPlay(auto)
       setActiveScene({ id: scene.id, index: next })
       setActiveId(scene.songs[next])
+      if (!auto) padForSong(scene.songs[next]) // avanço automático não tem pausa para o pad
       return true
     },
     [scenes, activeScene, songs]
@@ -355,10 +379,13 @@ export default function App(): React.ReactElement {
           setActiveId(null)
           setActiveScene(null)
           setAutoPlay(false)
+          padGen.current++
+          padFromScene.current = false
         }}
         scene={sceneInfo}
         onEnded={settings?.sceneAutoAdvance ? () => stepScene(1, true) : undefined}
         autoPlay={autoPlay}
+        onPlayStart={onSongPlayStart}
       />
     )
   } else if (adding) {
@@ -414,6 +441,8 @@ export default function App(): React.ReactElement {
           songs={songs}
           scenes={scenes}
           autoAdvance={!!settings?.sceneAutoAdvance}
+          padBetween={!!settings?.padBetween}
+          onPadBetween={(on) => void window.stemkit.setSettings({ padBetween: on })}
           onSave={saveScenes}
           onAutoAdvance={(on) => void window.stemkit.setSettings({ sceneAutoAdvance: on })}
           onPlay={playScene}

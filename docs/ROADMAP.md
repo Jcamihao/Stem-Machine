@@ -13,7 +13,7 @@ Fonte única do que falta. Ordem = importância (bases primeiro). Estimativa de 
 
 | # | Item | Esforço | Estado |
 |---|------|---------|--------|
-| 6 | Pad automático entre músicas (numa cena, entra no tom da próxima e some no play) | P | feito, falta instalar e commitar |
+| 6 | Pad automático entre músicas (numa cena, entra no tom da próxima e some no play) | P | **feito** (v0.6.0) |
 | 7 | Controle MIDI (aprender tecla, mapa de ações, "próximo refrão") | M | a fazer |
 | 4 | Controle pelo celular no navegador (rede local, PIN, partes, play, tom, BPM, pad, cenas) | G | a fazer |
 | 5 | Guia com a sua voz: **gravar as 13 palavras dentro do app** (o clone por IA ficou robótico e foi descartado) | M | a fazer |

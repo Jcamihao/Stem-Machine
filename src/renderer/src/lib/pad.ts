@@ -434,6 +434,14 @@ class PadEngine {
       this.stop()
       return Promise.resolve()
     }
+    return this.playKey(key)
+  }
+
+  // liga o pad nessa nota, ou troca para ela; se já está tocando nela, não faz nada
+  // (diferente de pressKey, que desliga). É o que a cena usa entre músicas
+  playKey(key: number): Promise<void> {
+    key = mod12(key)
+    if (this.state.playing && this.state.key === key) return Promise.resolve()
     const wasPlaying = this.state.playing
     this.set({ key, playing: true, error: null }, true)
     return this.crossfade(wasPlaying ? TRANSITION_SECONDS[this.state.transition] : START_FADE)

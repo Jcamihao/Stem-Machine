@@ -86,9 +86,10 @@ interface Props {
   scene?: { name: string; index: number; total: number; onPrev?: () => void; onNext?: () => void }
   onEnded?: () => void // a música chegou ao fim tocando (a cena pode abrir a próxima)
   autoPlay?: boolean // abre já tocando (avanço automático da cena)
+  onPlayStart?: () => void // a música começou a tocar (o pad entre músicas sai de cena)
 }
 
-export function Player({ song, settings, onBack, scene, onEnded, autoPlay }: Props): React.ReactElement {
+export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPlayStart }: Props): React.ReactElement {
   const posRef = useRef(0)
   const playingRef = useRef(false)
   const songIdRef = useRef(song.videoId)
@@ -114,6 +115,11 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay }: Pro
   const pendingRef = useRef<number | null>(null)
   const onEndedRef = useRef(onEnded)
   onEndedRef.current = onEnded
+  const onPlayStartRef = useRef(onPlayStart)
+  onPlayStartRef.current = onPlayStart
+  useEffect(() => {
+    if (playing) onPlayStartRef.current?.()
+  }, [playing])
   const clearPending = useCallback((): void => {
     if (pendingRef.current === null) return
     pendingRef.current = null

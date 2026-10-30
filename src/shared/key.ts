@@ -93,6 +93,11 @@ export function detectKey(chords: { start: number; end: number; label: string }[
   return best
 }
 
+// nota (0 = C ... 11 = B) da tônica do tom, já transposta: é o tom em que o pad toca
+export function shiftedTonic(key: MusicKey, shift = 0): number {
+  return mod12(key.tonic + shift)
+}
+
 // nome do tom, já transposto (ex.: Gm com +2 -> Am)
 export function keyName(key: MusicKey, shift = 0): string {
   return (key.minor ? MINOR_NAMES : MAJOR_NAMES)[mod12(key.tonic + shift)]

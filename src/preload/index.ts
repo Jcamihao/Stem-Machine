@@ -21,6 +21,7 @@ const api: StemKitApi = {
   saveBeats: (videoId, grid) => ipcRenderer.invoke('beats:save', videoId, grid),
   saveGenerated: (videoId, stem, wav) => ipcRenderer.invoke('generated:save', videoId, stem, wav),
   getGuideClips: () => ipcRenderer.invoke('voice:clips'),
+  songPadKey: (videoId) => ipcRenderer.invoke('song:padkey', videoId),
   listScenes: () => ipcRenderer.invoke('scenes:list'),
   saveScenes: (scenes) => ipcRenderer.invoke('scenes:save', scenes),
   getMix: (videoId) => ipcRenderer.invoke('song:mix', videoId),

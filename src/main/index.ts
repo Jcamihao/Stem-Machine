@@ -36,7 +36,7 @@ import { initUpdater } from './updater'
 import { guideClips } from './voice'
 import { loadScenes, saveScenes } from './scenes'
 import { listPads, importPad, updatePad, removePad, readPad } from './pads'
-import { detectKey, keyName } from '../shared/key'
+import { detectKey, keyName, shiftedTonic } from '../shared/key'
 import { runSmoke } from './smoke'
 import { getThumb, clearThumbMemo } from './thumbs'
 
@@ -277,6 +277,14 @@ app.whenReady().then(async () => {
     writeFileSync(join(stemsDir(videoId), `${stem}.wav`), Buffer.from(wav))
   })
   ipcMain.handle('voice:clips', () => guideClips())
+  ipcMain.handle('song:padkey', (_e, videoId: string) => {
+    if (!inLibrary(videoId)) return null
+    const chords = loadChords(videoId)
+    const key = chords ? detectKey(chords.chords) : null
+    if (!key) return null
+    const semitones = loadMix(videoId)?.semitones
+    return shiftedTonic(key, Number.isInteger(semitones) ? semitones : 0)
+  })
   ipcMain.handle('scenes:list', () => loadScenes())
   ipcMain.handle('scenes:save', (_e, scenes: unknown) => saveScenes(scenes))
   ipcMain.handle('song:mix', (_e, videoId: string) => (inLibrary(videoId) ? loadMix(videoId) : null))

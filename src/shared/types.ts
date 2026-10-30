@@ -51,6 +51,8 @@ export interface AppSettings {
   sectionSwitch: 'bar' | 'now'
   // ao fim da música, abre a próxima da cena sozinho (padrão: não, no culto quem decide é você)
   sceneAutoAdvance: boolean
+  // numa cena, ao passar para a próxima música o pad entra no tom dela e some quando ela der play
+  padBetween: boolean
 }
 
 // mixagem salva por música (mix.json): só o que difere do padrão
@@ -98,7 +100,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   padBrightness: 0.75,
   padTransition: 'slow',
   sectionSwitch: 'bar',
-  sceneAutoAdvance: false
+  sceneAutoAdvance: false,
+  padBetween: false
 }
 
 export interface EngineStatus {
@@ -221,6 +224,8 @@ export interface StemKitApi {
   saveBeats(videoId: string, grid: BeatGrid): Promise<void>
   saveGenerated(videoId: string, stem: 'click' | 'guide', wav: Uint8Array): Promise<void>
   getGuideClips(): Promise<Record<string, Uint8Array>>
+  // nota do pad (0 = C ... 11 = B) para a música: tom dos acordes + transposição salva; null = sem acordes
+  songPadKey(videoId: string): Promise<number | null>
   listScenes(): Promise<Scene[]>
   saveScenes(scenes: Scene[]): Promise<Scene[]>
   getMix(videoId: string): Promise<MixState | null>

@@ -6,14 +6,16 @@ interface Props {
   songs: Song[]
   scenes: Scene[]
   autoAdvance: boolean
+  padBetween: boolean
   onSave: (scenes: Scene[]) => void
   onAutoAdvance: (on: boolean) => void
+  onPadBetween: (on: boolean) => void
   onPlay: (scene: Scene) => void
   onClose: () => void
 }
 
 // cenas (setlist): cria, ordena e toca uma lista de músicas em sequência
-export function ScenesPanel({ songs, scenes, autoAdvance, onSave, onAutoAdvance, onPlay, onClose }: Props): React.ReactElement {
+export function ScenesPanel({ songs, scenes, autoAdvance, padBetween, onSave, onAutoAdvance, onPadBetween, onPlay, onClose }: Props): React.ReactElement {
   const [selectedId, setSelectedId] = useState<string | null>(scenes[0]?.id ?? null)
   const [newName, setNewName] = useState('')
   const scene = scenes.find((s) => s.id === selectedId) ?? null
@@ -123,6 +125,10 @@ export function ScenesPanel({ songs, scenes, autoAdvance, onSave, onAutoAdvance,
                 <label className="flex items-center gap-2 text-[12px] text-white/60 cursor-pointer select-none">
                   <input type="checkbox" checked={autoAdvance} onChange={(e) => onAutoAdvance(e.target.checked)} className="no-drag accent-white" />
                   Ao fim da música, abrir a próxima da cena sozinho
+                </label>
+                <label className="flex items-center gap-2 text-[12px] text-white/60 cursor-pointer select-none" title="Ao passar para a próxima música (você aperta ▶), o pad entra no tom dela e some quando você der play">
+                  <input type="checkbox" checked={padBetween} onChange={(e) => onPadBetween(e.target.checked)} className="no-drag accent-white" />
+                  Pad entre as músicas (no tom da próxima)
                 </label>
               </>
             )}
