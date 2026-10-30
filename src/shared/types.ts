@@ -49,6 +49,8 @@ export interface AppSettings {
   padTransition: PadTransition
   // clique numa parte: 'bar' espera a virada do compasso (tocando), 'now' salta na hora
   sectionSwitch: 'bar' | 'now'
+  // ao fim da música, abre a próxima da cena sozinho (padrão: não, no culto quem decide é você)
+  sceneAutoAdvance: boolean
 }
 
 // mixagem salva por música (mix.json): só o que difere do padrão
@@ -63,6 +65,13 @@ export interface MixState {
   semitones?: number
   tuningHz?: number
   clickFactor?: number
+}
+
+// cena (setlist): músicas em ordem; o tom de cada uma vem da mixagem salva dela
+export interface Scene {
+  id: string
+  name: string
+  songs: string[] // videoId da biblioteca
 }
 
 export type PadTransition = 'fast' | 'slow'
@@ -88,7 +97,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   padVolume: 0.7,
   padBrightness: 0.75,
   padTransition: 'slow',
-  sectionSwitch: 'bar'
+  sectionSwitch: 'bar',
+  sceneAutoAdvance: false
 }
 
 export interface EngineStatus {
@@ -211,6 +221,8 @@ export interface StemKitApi {
   saveBeats(videoId: string, grid: BeatGrid): Promise<void>
   saveGenerated(videoId: string, stem: 'click' | 'guide', wav: Uint8Array): Promise<void>
   getGuideClips(): Promise<Record<string, Uint8Array>>
+  listScenes(): Promise<Scene[]>
+  saveScenes(scenes: Scene[]): Promise<Scene[]>
   getMix(videoId: string): Promise<MixState | null>
   saveMix(videoId: string, mix: MixState | null): Promise<void>
   listPads(): Promise<PadSample[]>

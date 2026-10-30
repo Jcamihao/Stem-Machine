@@ -34,6 +34,7 @@ import { loadSongs, removeSong, stemBuffers, stemsDir, stemsFor, mixWavPath, AUD
 import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addStems, analyzeSections, analyzeChords } from './pipeline'
 import { initUpdater } from './updater'
 import { guideClips } from './voice'
+import { loadScenes, saveScenes } from './scenes'
 import { listPads, importPad, updatePad, removePad, readPad } from './pads'
 import { detectKey, keyName } from '../shared/key'
 import { runSmoke } from './smoke'
@@ -276,6 +277,8 @@ app.whenReady().then(async () => {
     writeFileSync(join(stemsDir(videoId), `${stem}.wav`), Buffer.from(wav))
   })
   ipcMain.handle('voice:clips', () => guideClips())
+  ipcMain.handle('scenes:list', () => loadScenes())
+  ipcMain.handle('scenes:save', (_e, scenes: unknown) => saveScenes(scenes))
   ipcMain.handle('song:mix', (_e, videoId: string) => (inLibrary(videoId) ? loadMix(videoId) : null))
   ipcMain.handle('mix:save', (_e, videoId: string, mix: MixState | null) => {
     if (!inLibrary(videoId)) throw new Error('Song not found')

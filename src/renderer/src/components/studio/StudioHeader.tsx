@@ -120,6 +120,7 @@ interface Props {
   exportItems: MenuItem[]
   menuItems: MenuItem[]
   outputSplit?: boolean
+  scene?: { name: string; index: number; total: number; onPrev?: () => void; onNext?: () => void }
 }
 
 export function StudioHeader(p: Props): React.ReactElement {
@@ -133,6 +134,14 @@ export function StudioHeader(p: Props): React.ReactElement {
         <SongThumb videoId={p.videoId} className="w-full h-full object-cover" />
       </div>
       <h1 className="flex-1 min-w-0 text-[15px] font-bold truncate">{p.title}</h1>
+      {p.scene && (
+        <div className="flex items-center gap-1 h-9 pl-3 pr-1 rounded-md bg-[#1e1e1e] text-[12px] font-semibold" title="Cena em andamento">
+          <span className="max-w-[160px] truncate">{p.scene.name}</span>
+          <span className="text-white/45 mr-1">{p.scene.index + 1}/{p.scene.total}</span>
+          <button onClick={p.scene.onPrev} disabled={!p.scene.onPrev} title="Música anterior da cena" className="no-drag w-7 h-7 rounded hover:bg-white/10 disabled:opacity-30">◀</button>
+          <button onClick={p.scene.onNext} disabled={!p.scene.onNext} title="Próxima música da cena" className="no-drag w-7 h-7 rounded hover:bg-white/10 disabled:opacity-30">▶</button>
+        </div>
+      )}
       <div className="flex items-center gap-2.5">
         <button onClick={p.onAddStems} disabled={!p.canAddStems} title="Adicionar faixas a esta música" className={`${chip} disabled:opacity-40`}>
           <SplitIcon className="w-[18px] h-[18px]" /> Separar faixas

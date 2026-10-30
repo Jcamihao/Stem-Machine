@@ -36,7 +36,8 @@ export function saveSettings(patch: Partial<AppSettings>): AppSettings {
     padVolume: clamp01(merged.padVolume, DEFAULT_SETTINGS.padVolume),
     padBrightness: clamp01(merged.padBrightness, DEFAULT_SETTINGS.padBrightness),
     padTransition: merged.padTransition === 'fast' ? 'fast' : 'slow',
-    sectionSwitch: merged.sectionSwitch === 'now' ? 'now' : 'bar'
+    sectionSwitch: merged.sectionSwitch === 'now' ? 'now' : 'bar',
+    sceneAutoAdvance: !!merged.sceneAutoAdvance
   }
   writeFileSync(settingsFile(), JSON.stringify(next, null, 2))
   for (const win of BrowserWindow.getAllWindows()) {

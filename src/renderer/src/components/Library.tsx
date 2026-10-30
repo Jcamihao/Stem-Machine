@@ -30,6 +30,7 @@ interface Props {
   onSelect: (videoId: string) => void
   onDelete: (videoId: string) => void
   onAdd: () => void
+  onOpenScenes: () => void
   onOpenSettings: () => void
 }
 
@@ -77,7 +78,7 @@ function RowMenu({ song, onOpen, onDelete }: { song: Song; onOpen: () => void; o
 
 /* biblioteca em tabela: título (capa, nome, origem), data, gênero, BPM, tom,
    duração. Tom vem dos acordes; gênero ainda não é detectado ("–") */
-export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd, onOpenSettings }: Props): React.ReactElement {
+export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd, onOpenScenes, onOpenSettings }: Props): React.ReactElement {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean }>({ key: 'date', asc: false })
   const [meta, setMeta] = useState<Record<string, { bpm: number | null; key: string | null }>>({})
@@ -161,6 +162,9 @@ export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd,
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
             <path d="M8 4v16m0 0-4-4m4 4 4-4M16 20V4m0 0-4 4m4-4 4 4" />
           </svg>
+        </button>
+        <button onClick={onOpenScenes} title="Cenas (setlist): músicas em ordem" className="no-drag h-8 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]">
+          Cenas
         </button>
         <PadButton className="no-drag flex items-center gap-2 h-8 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]" />
         <button onClick={onOpenSettings} title="Configurações" className="no-drag w-8 h-8 rounded-md bg-[#1e1e1e] text-white/80 hover:text-white flex items-center justify-center">

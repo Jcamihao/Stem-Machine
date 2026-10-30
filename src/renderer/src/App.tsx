@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AppSettings, EnvStatus, JobProgress, JobStage, Song } from '../../shared/types'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { AppSettings, EnvStatus, JobProgress, JobStage, Scene, Song } from '../../shared/types'
 import { MODEL_DEFAULT } from '../../shared/types'
 import { parseVideoId } from '../../shared/url'
 import { localSongId, isLocalId } from '../../shared/local'
@@ -13,6 +13,9 @@ import { Settings } from './components/Settings'
 import { About } from './components/About'
 import { LogoMark } from './components/Icons'
 import { pad } from './lib/pad'
+import { registerCommandHandler } from './lib/commands'
+import { stepSong } from './lib/scenes'
+import { ScenesPanel } from './components/ScenesPanel'
 
 interface EnvLog {
   message: string
@@ -58,11 +61,17 @@ export default function App(): React.ReactElement {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  // cenas (setlist): a cena em andamento guarda em qual música ela está
+  const [scenes, setScenes] = useState<Scene[]>([])
+  const [scenesOpen, setScenesOpen] = useState(false)
+  const [activeScene, setActiveScene] = useState<{ id: string; index: number } | null>(null)
+  const [autoPlay, setAutoPlay] = useState(false) // a música aberta pela cena já começa tocando
 
   useEffect(() => {
     void window.stemkit.envStatus().then(setStatus)
     void window.stemkit.listSongs().then(setSongs)
     void window.stemkit.getSettings().then(setSettings)
+    void window.stemkit.listScenes().then(setScenes)
     const offSettings = window.stemkit.onSettingsChange(setSettings)
     const offJob = window.stemkit.onJobEvent((ev) => {
       // "adicionar stem" acontece dentro do player (ele mostra progresso e erro)
@@ -170,6 +179,48 @@ export default function App(): React.ReactElement {
     [jobs]
   )
 
+  const saveScenes = useCallback((next: Scene[]): void => {
+    setScenes(next)
+    void window.stemkit.saveScenes(next).then(setScenes)
+  }, [])
+
+  const playScene = (scene: Scene): void => {
+    const exists = (id: string): boolean => songs.some((s) => s.videoId === id)
+    const first = scene.songs.findIndex(exists)
+    if (first < 0) return
+    setScenesOpen(false)
+    setAdding(false)
+    setAutoPlay(false)
+    setActiveScene({ id: scene.id, index: first })
+    setActiveId(scene.songs[first])
+  }
+
+  // próxima/anterior música da cena em andamento (ignora as que saíram da biblioteca)
+  const stepScene = useCallback(
+    (delta: -1 | 1, auto = false): boolean => {
+      const scene = scenes.find((s) => s.id === activeScene?.id)
+      if (!scene || !activeScene) return false
+      const next = stepSong(scene, activeScene.index, delta, (id) => songs.some((s) => s.videoId === id))
+      if (next === null) return false
+      setAutoPlay(auto)
+      setActiveScene({ id: scene.id, index: next })
+      setActiveId(scene.songs[next])
+      return true
+    },
+    [scenes, activeScene, songs]
+  )
+  const stepSceneRef = useRef(stepScene)
+  stepSceneRef.current = stepScene
+  useEffect(
+    () =>
+      registerCommandHandler((c) => {
+        if (c.type === 'nextSong') return stepSceneRef.current(1)
+        if (c.type === 'prevSong') return stepSceneRef.current(-1)
+        return false
+      }),
+    []
+  )
+
   const activeSong = useMemo(
     () => songs.find((s) => s.videoId === activeId) ?? null,
     [songs, activeId]
@@ -265,6 +316,18 @@ export default function App(): React.ReactElement {
     </div>
   )
 
+  const currentScene = scenes.find((sc) => sc.id === activeScene?.id)
+  const sceneInfo =
+    currentScene && activeScene && currentScene.songs[activeScene.index] === activeId
+      ? {
+          name: currentScene.name,
+          index: activeScene.index,
+          total: currentScene.songs.length,
+          onPrev: stepSong(currentScene, activeScene.index, -1, (id) => songs.some((s) => s.videoId === id)) !== null ? () => stepScene(-1) : undefined,
+          onNext: stepSong(currentScene, activeScene.index, 1, (id) => songs.some((s) => s.videoId === id)) !== null ? () => stepScene(1) : undefined
+        }
+      : undefined
+
   let main: React.ReactElement
   if (selectedIsBusy) {
     main = withBack(
@@ -288,7 +351,14 @@ export default function App(): React.ReactElement {
         key={`${activeSong.videoId}|${activeSong.model}|${(activeSong.stems ?? []).join(',')}`}
         song={activeSong}
         settings={settings ?? undefined}
-        onBack={() => setActiveId(null)}
+        onBack={() => {
+          setActiveId(null)
+          setActiveScene(null)
+          setAutoPlay(false)
+        }}
+        scene={sceneInfo}
+        onEnded={settings?.sceneAutoAdvance ? () => stepScene(1, true) : undefined}
+        autoPlay={autoPlay}
       />
     )
   } else if (adding) {
@@ -314,9 +384,14 @@ export default function App(): React.ReactElement {
         songs={displaySongs}
         pending={pendingMap}
         appVersion={appVersion}
-        onSelect={(id) => setActiveId(id)}
+        onSelect={(id) => {
+          setActiveScene(null)
+          setAutoPlay(false)
+          setActiveId(id)
+        }}
         onDelete={(id) => void deleteSong(id)}
         onAdd={() => setAdding(true)}
+        onOpenScenes={() => setScenesOpen(true)}
         onOpenSettings={openSettings}
       />
     )
@@ -332,6 +407,17 @@ export default function App(): React.ReactElement {
           gpuVendor={status.gpuVendor}
           onChange={(patch) => void window.stemkit.setSettings(patch)}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+      {scenesOpen && (
+        <ScenesPanel
+          songs={songs}
+          scenes={scenes}
+          autoAdvance={!!settings?.sceneAutoAdvance}
+          onSave={saveScenes}
+          onAutoAdvance={(on) => void window.stemkit.setSettings({ sceneAutoAdvance: on })}
+          onPlay={playScene}
+          onClose={() => setScenesOpen(false)}
         />
       )}
       {aboutOpen && <About version={appVersion} onClose={() => setAboutOpen(false)} />}

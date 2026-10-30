@@ -83,9 +83,12 @@ interface Props {
   song: Song
   settings?: AppSettings
   onBack: () => void
+  scene?: { name: string; index: number; total: number; onPrev?: () => void; onNext?: () => void }
+  onEnded?: () => void // a música chegou ao fim tocando (a cena pode abrir a próxima)
+  autoPlay?: boolean // abre já tocando (avanço automático da cena)
 }
 
-export function Player({ song, settings, onBack }: Props): React.ReactElement {
+export function Player({ song, settings, onBack, scene, onEnded, autoPlay }: Props): React.ReactElement {
   const posRef = useRef(0)
   const playingRef = useRef(false)
   const songIdRef = useRef(song.videoId)
@@ -109,6 +112,8 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
   // parte escolhida esperando a virada do compasso (pisca na barra de seções)
   const [pendingSection, setPendingSection] = useState<number | null>(null)
   const pendingRef = useRef<number | null>(null)
+  const onEndedRef = useRef(onEnded)
+  onEndedRef.current = onEnded
   const clearPending = useCallback((): void => {
     if (pendingRef.current === null) return
     pendingRef.current = null
@@ -429,9 +434,11 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
       if (dur > 0 && posRef.current >= dur - 0.03) {
         posRef.current = dur
         engine.stopAll()
+        const wasPlaying = playingRef.current // o fim pode ser visto duas vezes antes de parar o laço
         playingRef.current = false
         setPlaying(false)
         setBump((n) => n + 1)
+        if (wasPlaying) onEndedRef.current?.()
         return
       }
 
@@ -463,6 +470,14 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
       setPlaying(true)
     }
   }, [decoding, decodeError])
+
+  // avanço automático da cena: começa a tocar assim que as faixas estiverem prontas
+  const autoPlayedRef = useRef(false)
+  useEffect(() => {
+    if (!autoPlay || autoPlayedRef.current || decoding || decodeError) return
+    autoPlayedRef.current = true
+    togglePlay()
+  }, [autoPlay, decoding, decodeError, togglePlay])
 
   const seekTo = useCallback(
     (t: number): void => {
@@ -951,6 +966,7 @@ export function Player({ song, settings, onBack }: Props): React.ReactElement {
         exportItems={exportItems}
         menuItems={menuItems}
         outputSplit={outputSplit}
+        scene={scene}
       />
 
       <div className="flex-1 min-h-0 overflow-y-auto">
