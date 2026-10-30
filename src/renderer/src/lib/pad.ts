@@ -7,6 +7,7 @@
 import { useSyncExternalStore } from 'react'
 import type { AppSettings, PadSample, PadTransition } from '../../../shared/types'
 import { keyFromAudio, keyFromName } from './padKey'
+import { registerCommandHandler } from './commands'
 
 export const PAD_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 export const TRANSITION_SECONDS: Record<PadTransition, number> = { fast: 0.5, slow: 2 }
@@ -516,6 +517,14 @@ class PadEngine {
 }
 
 export const pad = new PadEngine()
+
+// o pad responde aos comandos de qualquer origem (teclado, celular, MIDI)
+registerCommandHandler((c) => {
+  if (c.type !== 'pad') return false
+  if (c.key === undefined) pad.toggle()
+  else void pad.pressKey(c.key)
+  return true
+})
 
 export function usePad(): PadState {
   return useSyncExternalStore(pad.subscribe, pad.getState)
