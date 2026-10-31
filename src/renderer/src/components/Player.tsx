@@ -755,9 +755,20 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
       case 'click':
         toggleClick()
         return true
-      case 'loop':
-        toggleLoop()
+      case 'loop': {
+        // ligado: desliga. Desligado: volta ao A–B marcado se a agulha está dentro dele; senão
+        // (celular e MIDI não marcam A–B) faz o loop da parte em que a música está
+        const inside = loopA !== null && loopB !== null && posRef.current >= loopA && posRef.current <= loopB
+        if (loopOn || inside) {
+          toggleLoop()
+          return true
+        }
+        const list = sections?.sections ?? []
+        const here = list.findIndex((s) => posRef.current >= s.start && posRef.current < s.end)
+        if (here < 0) return false
+        loopSection(here)
         return true
+      }
       case 'goToNext': {
         const list = sections?.sections ?? []
         const here = list.findIndex((s) => posRef.current >= s.start && posRef.current < s.end)

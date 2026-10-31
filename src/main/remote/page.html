@@ -101,6 +101,12 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
 .padhead{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 .padhead .sec-title{margin:0;flex:1}
 .padhead .tog{flex:none;min-width:160px;min-height:56px;font-size:18px}
+.padvol{display:flex;align-items:center;gap:12px;margin:0 0 12px}.padvol .lbl{flex:none;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#a3a3a3}.padvol .val{flex:none;min-width:48px;text-align:right;font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.padvol input[type=range]{flex:1;min-width:0;height:48px;margin:0;background:transparent;-webkit-appearance:none;appearance:none;touch-action:none}
+.padvol input[type=range]::-webkit-slider-runnable-track{height:10px;border-radius:5px;background:#333}
+.padvol input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:36px;height:36px;border-radius:50%;background:#34d399;border:0;margin-top:-13px}
+.padvol input[type=range]::-moz-range-track{height:10px;border-radius:5px;background:#333}
+.padvol input[type=range]::-moz-range-thumb{width:36px;height:36px;border-radius:50%;background:#34d399;border:0}
 .notes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .note{min-height:62px;border-radius:14px;background:var(--card2);font-size:22px;font-weight:800;color:var(--fg)}
 .note.acc{background:#262626;color:#d4d4d4}
@@ -282,6 +288,7 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
                 <div class="sec-title">Pad</div>
                 <button type="button" class="tog" id="padtog">Pad desligado</button>
               </div>
+              <div class="padvol"><span class="lbl">Volume</span><input type="range" id="padvol" min="0" max="100" step="1" value="70" aria-label="Volume do pad"><span class="val" id="padvolv">70%</span></div>
               <div class="notes" id="notes"></div>
             </div>
           </div>
@@ -324,6 +331,7 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
   var reconnDelay = 1500;
   var tab = 'play';
   var openedScene = null; // id da cena aberta na aba Cenas
+  var padVolDrag = false, padVolTimer = null, padVolLast = 0;
   var partsSig = '';
   var listSig = '';
   var armed = { key: null, until: 0, el: null, timer: null };
@@ -776,6 +784,8 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
       $('loop').textContent = s.loopOn ? 'Loop ligado' : 'Loop';
 
       var pd = s.pad || { playing: false, key: 0 };
+      var pv = typeof pd.volume === 'number' ? Math.round(pd.volume * 100) : 70;
+      if (!padVolDrag) { $('padvol').value = String(pv); $('padvolv').textContent = pv + '%'; }
       $('padtog').className = 'tog' + (pd.playing ? ' on' : '');
       $('padtog').textContent = pd.playing ? 'Pad ligado' : 'Pad desligado';
       var ns = $('notes').children;
@@ -949,6 +959,25 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
     bind('click', function () { send({ type: 'click' }, $('click')); });
     bind('loop', function () { send({ type: 'loop' }, $('loop')); });
     bind('padtog', function () { send({ type: 'pad' }, $('padtog')); });
+    // volume do pad: manda enquanto arrasta (no máximo 10 por segundo, sem vibrar) e o valor final ao soltar
+    var pvEl = $('padvol');
+    function sendPadVol() {
+      padVolTimer = null; padVolLast = Date.now();
+      call('POST', '/api/cmd', { type: 'padVolume', value: Number(pvEl.value) / 100 }).then(null, function () {});
+    }
+    function padVolInput() {
+      padVolDrag = true;
+      $('padvolv').textContent = pvEl.value + '%';
+      var wait = 100 - (Date.now() - padVolLast);
+      if (wait <= 0) sendPadVol(); else if (!padVolTimer) padVolTimer = setTimeout(sendPadVol, wait);
+    }
+    function padVolEnd() {
+      if (padVolTimer) { clearTimeout(padVolTimer); padVolTimer = null; }
+      sendPadVol();
+      setTimeout(function () { padVolDrag = false; }, 400);
+    }
+    pvEl.addEventListener('input', padVolInput);
+    pvEl.addEventListener('change', padVolEnd);
     bind('prev', function () {
       guarded('prev', $('prev'), 'Tocando agora. Toque de novo para voltar a música.', function () { send({ type: 'prevSong' }, $('prev')); });
     });

@@ -303,8 +303,8 @@ export default function App(): React.ReactElement {
   useEffect(() => remote.startRemote(), [])
   useEffect(() => {
     const publishPad = (): void => {
-      const { playing, key } = pad.getState()
-      remote.setApp({ pad: { playing, key } })
+      const { playing, key, volume } = pad.getState()
+      remote.setApp({ pad: { playing, key, volume } })
     }
     publishPad()
     return pad.subscribe(publishPad)

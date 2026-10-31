@@ -528,6 +528,10 @@ export const pad = new PadEngine()
 
 // o pad responde aos comandos de qualquer origem (teclado, celular, MIDI)
 registerCommandHandler((c) => {
+  if (c.type === 'padVolume') {
+    pad.setVolume(Math.min(1, Math.max(0, c.value)))
+    return true
+  }
   if (c.type !== 'pad') return false
   if (c.key === undefined) pad.toggle()
   else void pad.pressKey(c.key)

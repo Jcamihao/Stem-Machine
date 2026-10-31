@@ -70,7 +70,7 @@ export function cleanState(raw: unknown): RemoteState | null {
     pendingSection: typeof r.pendingSection === 'number' && Number.isInteger(r.pendingSection) ? r.pendingSection : null,
     clickOn: r.clickOn === true,
     loopOn: r.loopOn === true,
-    pad: { playing: pad.playing === true, key: key >= 0 && key <= 11 ? key : 0 },
+    pad: { playing: pad.playing === true, key: key >= 0 && key <= 11 ? key : 0, volume: typeof pad.volume === 'number' && Number.isFinite(pad.volume) ? Math.min(1, Math.max(0, pad.volume)) : 0.7 },
     scene: sc
       ? {
           id: str(sc.id),

@@ -25,7 +25,7 @@ export interface RemoteState {
   pendingSection: number | null // parte escolhida esperando a virada do compasso
   clickOn: boolean
   loopOn: boolean
-  pad: { playing: boolean; key: number } // key 0 = C ... 11 = B
+  pad: { playing: boolean; key: number; volume: number } // key 0 = C ... 11 = B; volume 0..1
   scene: { id: string; name: string; index: number; total: number; hasPrev: boolean; hasNext: boolean } | null
 }
 
@@ -40,6 +40,7 @@ export type RemoteCommand =
   | { type: 'goToSection'; index: number }
   | { type: 'semitones' | 'bpm'; delta: -1 | 1 }
   | { type: 'pad'; key?: number } // sem key: liga/desliga; com key (0..11): toca nessa nota
+  | { type: 'padVolume'; value: number } // volume do pad, 0..1
   | { type: 'openSong'; id: string }
   | { type: 'openScene'; id: string }
 
@@ -59,6 +60,9 @@ export function parseRemoteCommand(raw: unknown): RemoteCommand | null {
   if (type === 'pad') {
     if (r.key === undefined) return { type }
     return isInt(r.key, 0, 11) ? { type, key: r.key } : null
+  }
+  if (type === 'padVolume') {
+    return typeof r.value === 'number' && Number.isFinite(r.value) ? { type, value: Math.round(Math.min(1, Math.max(0, r.value)) * 100) / 100 } : null
   }
   if (type === 'openSong' || type === 'openScene') return isId(r.id) ? { type, id: r.id } : null
   return null

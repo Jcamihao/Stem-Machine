@@ -14,6 +14,7 @@ export type Command =
   | { type: 'loop' } // liga/desliga o loop A–B
   | { type: 'goToNext'; label: string } // próxima parte com esse nome (ex.: 'chorus') depois da posição atual
   | { type: 'pad'; key?: number } // sem nota: liga/desliga o pad
+  | { type: 'padVolume'; value: number } // volume do pad, 0..1
   | { type: 'nextSong' }
   | { type: 'prevSong' }
   | { type: 'openSong'; id: string } // abre uma música da biblioteca (celular)

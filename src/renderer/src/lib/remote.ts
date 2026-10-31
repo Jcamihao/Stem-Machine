@@ -27,7 +27,7 @@ export interface RemoteApp {
 const POSITION_MS = 250
 
 let player: RemotePlayer | null = null
-let app: RemoteApp = { pad: { playing: false, key: 0 }, scene: null }
+let app: RemoteApp = { pad: { playing: false, key: 0, volume: 0.7 }, scene: null }
 let lastFull = ''
 let lastDiscrete = ''
 let lastAt = -Infinity
