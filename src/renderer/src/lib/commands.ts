@@ -16,6 +16,8 @@ export type Command =
   | { type: 'pad'; key?: number } // sem nota: liga/desliga o pad
   | { type: 'nextSong' }
   | { type: 'prevSong' }
+  | { type: 'openSong'; id: string } // abre uma música da biblioteca (celular)
+  | { type: 'openScene'; id: string } // toca uma cena desde a primeira música (celular)
 
 export type CommandHandler = (command: Command) => boolean | void
 

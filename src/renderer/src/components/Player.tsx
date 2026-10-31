@@ -20,6 +20,8 @@ import { ChordNow, ChordStrip } from './studio/ChordStrip'
 import { formatChord } from '../lib/chords'
 import { detectKey, keyName } from '../../../shared/key'
 import { pad } from '../lib/pad'
+import * as remote from '../lib/remote'
+import { SECTION_NAMES } from '../../../shared/midi'
 import { buildMix, parseMix } from '../lib/mix'
 
 export type ClickFactor = 0.5 | 1 | 2
@@ -710,17 +712,27 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
   }
 
   // comandos de qualquer origem (teclado, depois celular e MIDI) caem aqui enquanto o player está aberto
+  const playWhenReadyRef = useRef(false)
+  useEffect(() => {
+    if (decoding || decodeError || !playWhenReadyRef.current) return
+    playWhenReadyRef.current = false
+    togglePlay()
+  }, [decoding, decodeError, togglePlay])
   const commandRef = useRef<(c: Command) => boolean>(() => false)
   commandRef.current = (c) => {
     switch (c.type) {
+      // faixas ainda carregando: o pedido (celular, MIDI, teclado) fica na fila e toca quando pronto
       case 'toggle':
-        togglePlay()
+        if (decoding) playWhenReadyRef.current = !playWhenReadyRef.current
+        else togglePlay()
         return true
       case 'play':
-        if (!playingRef.current) togglePlay()
+        if (decoding) playWhenReadyRef.current = true
+        else if (!playingRef.current) togglePlay()
         return true
       case 'pause':
-        if (playingRef.current) togglePlay()
+        if (decoding) playWhenReadyRef.current = false
+        else if (playingRef.current) togglePlay()
         return true
       case 'seek':
         seekTo(c.time)
@@ -908,6 +920,38 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
     pad.setSongKey(musicKey ? (((musicKey.tonic + semitones) % 12) + 12) % 12 : null)
   }, [musicKey, semitones])
   useEffect(() => () => pad.setSongKey(null), [])
+
+  // celular: publica o estado (o servidor repassa à página). A posição vem do posRef
+  const remoteSections = useMemo(
+    () => (sections?.sections ?? []).map((x) => ({ label: x.label, name: SECTION_NAMES[x.label] ?? x.label, start: x.start, end: x.end })),
+    [sections]
+  )
+  const remoteBpm = beats && beats.bpm > 0 ? Math.round(beats.bpm * clickFactor * speed) : null
+  const remoteKey = musicKey ? keyName(musicKey, semitones) : null
+  const remoteClickOn = !!beats && !mutes.has('click')
+  useEffect(() => {
+    remote.setPlayer({
+      song: { id: song.videoId, title: song.title },
+      playing,
+      loading: decoding,
+      position: posRef.current,
+      duration,
+      bpm: remoteBpm,
+      keyLabel: remoteKey,
+      semitones,
+      sections: remoteSections,
+      pendingSection,
+      clickOn: remoteClickOn,
+      loopOn
+    })
+  }, [song.videoId, song.title, playing, decoding, duration, remoteBpm, remoteKey, semitones, remoteSections, pendingSection, remoteClickOn, loopOn, bump])
+  // tocando, a posição segue em 4 por segundo (o publicador ainda limita e ignora o que não mudou)
+  useEffect(() => {
+    if (!playing) return
+    const id = setInterval(() => remote.setPosition(posRef.current), 250)
+    return () => clearInterval(id)
+  }, [playing])
+  useEffect(() => () => remote.setPlayer(null), [])
   const exportItems: MenuItem[] = [
     { label: 'Exportar todas as faixas', onClick: exportAllStems, disabled: decoding || !!addProgress },
     ...stemMeta.map((meta) => ({

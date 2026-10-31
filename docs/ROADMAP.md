@@ -15,7 +15,7 @@ Fonte única do que falta. Ordem = importância (bases primeiro). Estimativa de 
 |---|------|---------|--------|
 | 6 | Pad automático entre músicas (numa cena, entra no tom da próxima e some no play) | P | **feito** (v0.6.0) |
 | 7 | Controle MIDI (aprender tecla, mapa de ações, "próximo refrão") | M | **feito** (v0.7.0; falta testar com um controlador de verdade) |
-| 4 | Controle pelo celular no navegador (rede local, PIN, partes, play, tom, BPM, pad, cenas) | G | a fazer |
+| 4 | Controle pelo celular no navegador (rede local, PIN, partes, play, tom, BPM, pad, cenas) | G | **feito** (v0.8.0; falta testar no Safari do iPhone e do iPad) |
 | 5 | Guia com a sua voz: **gravar as 13 palavras dentro do app** (o clone por IA ficou robótico e foi descartado) | M | a fazer |
 
 ## Setlist do dia (pedido em 2026-10-31)

@@ -18,6 +18,8 @@ import { stepSong } from './lib/scenes'
 import { ScenesPanel } from './components/ScenesPanel'
 import { MidiPanel } from './components/MidiPanel'
 import { midi } from './lib/midi'
+import { RemotePanel } from './components/RemotePanel'
+import * as remote from './lib/remote'
 
 interface EnvLog {
   message: string
@@ -67,6 +69,7 @@ export default function App(): React.ReactElement {
   const [scenes, setScenes] = useState<Scene[]>([])
   const [scenesOpen, setScenesOpen] = useState(false)
   const [midiOpen, setMidiOpen] = useState(false)
+  const [remoteOpen, setRemoteOpen] = useState(false)
   const [activeScene, setActiveScene] = useState<{ id: string; index: number } | null>(null)
   const [autoPlay, setAutoPlay] = useState(false) // a música aberta pela cena já começa tocando
 
@@ -246,15 +249,60 @@ export default function App(): React.ReactElement {
   )
   const stepSceneRef = useRef(stepScene)
   stepSceneRef.current = stepScene
+  // o handler é registrado uma vez: lê sempre a versão atual de songs/scenes/playScene
+  const openRef = useRef({ songs, scenes, playScene })
+  openRef.current = { songs, scenes, playScene }
   useEffect(
     () =>
       registerCommandHandler((c) => {
         if (c.type === 'nextSong') return stepSceneRef.current(1)
         if (c.type === 'prevSong') return stepSceneRef.current(-1)
+        const { songs: list, scenes: allScenes, playScene: play } = openRef.current
+        if (c.type === 'openSong') {
+          // só abre o que está na biblioteca (o id vem da rede)
+          if (!list.some((s) => s.videoId === c.id)) return false
+          setAdding(false)
+          setScenesOpen(false)
+          setActiveScene(null)
+          setAutoPlay(false)
+          setActiveId(c.id)
+          return true
+        }
+        if (c.type === 'openScene') {
+          const scene = allScenes.find((sc) => sc.id === c.id)
+          if (!scene) return false
+          play(scene)
+          return true
+        }
         return false
       }),
     []
   )
+
+  // celular: comandos entram por startRemote; o pad e a cena em andamento saem daqui
+  useEffect(() => remote.startRemote(), [])
+  useEffect(() => {
+    const publishPad = (): void => {
+      const { playing, key } = pad.getState()
+      remote.setApp({ pad: { playing, key } })
+    }
+    publishPad()
+    return pad.subscribe(publishPad)
+  }, [])
+  const remoteScene = useMemo(() => {
+    const scene = scenes.find((sc) => sc.id === activeScene?.id)
+    if (!scene || !activeScene || scene.songs[activeScene.index] !== activeId) return null
+    const exists = (id: string): boolean => songs.some((s) => s.videoId === id)
+    return {
+      id: scene.id,
+      name: scene.name,
+      index: activeScene.index,
+      total: scene.songs.length,
+      hasPrev: stepSong(scene, activeScene.index, -1, exists) !== null,
+      hasNext: stepSong(scene, activeScene.index, 1, exists) !== null
+    }
+  }, [scenes, activeScene, activeId, songs])
+  useEffect(() => remote.setApp({ scene: remoteScene }), [remoteScene])
 
   const activeSong = useMemo(
     () => songs.find((s) => s.videoId === activeId) ?? null,
@@ -431,6 +479,7 @@ export default function App(): React.ReactElement {
         onAdd={() => setAdding(true)}
         onOpenScenes={() => setScenesOpen(true)}
         onOpenMidi={() => setMidiOpen(true)}
+        onOpenRemote={() => setRemoteOpen(true)}
         onOpenSettings={openSettings}
       />
     )
@@ -462,6 +511,7 @@ export default function App(): React.ReactElement {
         />
       )}
       {midiOpen && <MidiPanel onClose={() => setMidiOpen(false)} />}
+      {remoteOpen && <RemotePanel onClose={() => setRemoteOpen(false)} />}
       {aboutOpen && <About version={appVersion} onClose={() => setAboutOpen(false)} />}
     </div>
   )
