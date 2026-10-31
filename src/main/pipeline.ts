@@ -89,9 +89,24 @@ function releaseSeparation(): void {
   separationWaiters.shift()?.()
 }
 
+const jobListeners = new Set<(ev: JobEvent) => void>()
+
+// quem mais precisa acompanhar os jobs (ex.: o servidor do celular); devolve a função que para de ouvir
+export function onJobEvent(cb: (ev: JobEvent) => void): () => void {
+  jobListeners.add(cb)
+  return () => jobListeners.delete(cb)
+}
+
 function send(ev: JobEvent): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send('job:event', ev)
+  }
+  for (const cb of jobListeners) {
+    try {
+      cb(ev)
+    } catch {
+      // um ouvinte com defeito não pode derrubar o pipeline
+    }
   }
 }
 

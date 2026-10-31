@@ -1,7 +1,11 @@
 // controle pelo celular: tipos e validação compartilhados entre o servidor (main),
 // a página do celular e o app (renderer). Contrato completo em .superpowers/sdd/remote/contrato.md
 
+import { parseVideoId } from './url'
+
 export const REMOTE_PORT = 8787
+// arquivo enviado pelo celular: limite de tamanho (o PC grava num temporário e separa)
+export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024
 
 export interface RemoteSection {
   label: string // chave: 'verse', 'chorus'... (SECTION_NAMES em shared/midi.ts)
@@ -80,4 +84,47 @@ export interface RemoteStatus {
   pin: string
   clients: number // celulares conectados agora
   error: string | null // ex. porta em uso
+}
+
+// ---------- adicionar músicas pelo celular ----------
+
+// uma música sendo adicionada (por link ou arquivo), como o celular vê
+export type RemoteJobStage = 'queued' | 'metadata' | 'download' | 'convert' | 'separate' | 'finalize' | 'done' | 'error'
+
+export interface RemoteJob {
+  id: string // videoId da biblioteca ('local-xxxxxxxx' para arquivo)
+  title: string
+  stage: RemoteJobStage
+  pct: number // 0..100 da etapa atual
+  message?: string // texto curto do pipeline (ex.: "Downloading")
+  error?: string // só em stage 'error'
+}
+
+// pedido de POST /api/add-link: só links do YouTube; devolve o videoId ou null
+export function parseAddLink(raw: unknown): { url: string; id: string } | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const url = (raw as Record<string, unknown>).url
+  if (typeof url !== 'string' || url.length === 0 || url.length > 300) return null
+  const id = parseVideoId(url)
+  return id ? { url: url.trim(), id } : null
+}
+
+// nome de arquivo vindo da rede -> nome seguro para gravar em disco (sem pasta, sem caracteres de
+// controle, extensão numa lista permitida). null = recusar
+export function safeUploadName(raw: string, allowedExts: string[]): string | null {
+  let name = raw
+  try {
+    name = decodeURIComponent(raw)
+  } catch {
+    return null
+  }
+  name = name.split(/[\\/]/).pop() ?? ''
+  // eslint-disable-next-line no-control-regex
+  name = name.replace(/[\u0000-\u001f<>:"|?*]/g, '').replace(/^\.+/, '').trim()
+  const dot = name.lastIndexOf('.')
+  if (dot <= 0 || dot === name.length - 1) return null
+  const ext = name.slice(dot + 1).toLowerCase()
+  if (!allowedExts.includes(ext)) return null
+  const stem = name.slice(0, dot).trim().slice(0, 100)
+  return stem ? `${stem}.${ext}` : null
 }

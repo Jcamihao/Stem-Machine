@@ -2,12 +2,17 @@
 // Contrato: .superpowers/sdd/remote/contrato.md
 import { app, ipcMain, type BrowserWindow } from 'electron'
 import { randomInt } from 'crypto'
+import { join } from 'path'
 import { networkInterfaces, type NetworkInterfaceInfo } from 'os'
 import pageHtml from './remote/page.html?raw' // página do celular, embutida no build como texto
 import { loadSettings, saveSettings } from './settings'
-import { loadSongs } from './library'
+import { AUDIO_EXTENSIONS, loadSongs } from './library'
+import { cancelJob, onJobEvent, startJob, startLocalJob } from './pipeline'
 import { loadScenes } from './scenes'
-import { RemoteServer } from './remoteServer'
+import { RemoteServer, pruneUploads, removeUploadFolder } from './remoteServer'
+import { RemoteJobs } from './remoteJobs'
+import { localSongId } from '../shared/local'
+import { parseVideoId } from '../shared/url'
 import { PIN_RE, REMOTE_PORT, type RemoteLibrary, type RemoteState, type RemoteStatus } from '../shared/remote'
 
 export const REMOTE_PAGE: string = pageHtml
@@ -119,12 +124,40 @@ export function initRemote(getWindow: () => BrowserWindow | null): void {
   }
 
   let error: string | null = null
+  // todos os jobs do pipeline (inclusive os iniciados no PC) alimentam a lista que o celular vê
+  const jobs = new RemoteJobs()
+  onJobEvent((ev) => jobs.handle(ev))
+  const uploadsDir = join(app.getPath('userData'), 'uploads')
   const server = new RemoteServer({
     page: REMOTE_PAGE,
     getPin,
     getLibrary: () => buildLibrary(loadSongs(), loadScenes()),
     onCommand: (cmd) => send('remote:command', cmd),
-    onClients: () => send('remote:status', status())
+    onClients: () => send('remote:status', status()),
+    jobs,
+    uploadsDir,
+    audioExts: AUDIO_EXTENSIONS,
+    hasSong: (id) => loadSongs().some((s) => s.videoId === id),
+    startLink: (url) => {
+      const id = parseVideoId(url)
+      // startJob só resolve quando o job inteiro termina; o resultado chega pelos eventos
+      void startJob(url)
+        .catch(() => undefined)
+        .finally(() => {
+          if (id) jobs.failIfQueued(id, 'Não foi possível iniciar')
+        })
+    },
+    startUpload: (file) => {
+      const id = localSongId(file)
+      void startLocalJob(file)
+        .catch(() => undefined)
+        .finally(() => {
+          jobs.failIfQueued(id, 'Não foi possível ler o arquivo')
+          // a cópia temporária só serve até o pipeline converter; depois a biblioteca tem os próprios arquivos
+          void removeUploadFolder(uploadsDir, file)
+        })
+    },
+    cancelJob: (id) => cancelJob(id)
   })
 
   function status(): RemoteStatus {
@@ -145,6 +178,7 @@ export function initRemote(getWindow: () => BrowserWindow | null): void {
     try {
       await server.start(REMOTE_PORT)
       error = null
+      void pruneUploads(uploadsDir, 24 * 3600_000) // sobras de envios de uma queda anterior
     } catch (e) {
       const code = (e as NodeJS.ErrnoException).code
       error = code === 'EADDRINUSE' ? `Porta ${REMOTE_PORT} em uso` : `Não foi possível iniciar: ${(e as Error).message}`

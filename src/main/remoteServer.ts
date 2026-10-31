@@ -2,8 +2,24 @@
 // Contrato: .superpowers/sdd/remote/contrato.md
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'http'
 import { createHash, randomBytes, timingSafeEqual } from 'crypto'
+import { createWriteStream } from 'fs'
+import { lstat, mkdir, readdir, rm } from 'fs/promises'
+import { dirname, isAbsolute, join, relative, resolve } from 'path'
+import { Transform } from 'stream'
+import { pipeline } from 'stream/promises'
 import type { AddressInfo } from 'net'
-import { parseRemoteCommand, PIN_RE, type RemoteCommand, type RemoteLibrary, type RemoteState } from '../shared/remote'
+import {
+  MAX_UPLOAD_BYTES,
+  parseAddLink,
+  parseRemoteCommand,
+  PIN_RE,
+  safeUploadName,
+  type RemoteCommand,
+  type RemoteLibrary,
+  type RemoteState
+} from '../shared/remote'
+import { localSongId } from '../shared/local'
+import type { RemoteJobs } from './remoteJobs'
 
 export interface RemoteServerDeps {
   page: string // HTML servido em GET /
@@ -11,6 +27,14 @@ export interface RemoteServerDeps {
   getLibrary(): RemoteLibrary
   onCommand(command: RemoteCommand): void // comando já validado
   onClients(count: number): void // número de celulares com a conexão de eventos aberta
+  // ---- adicionar músicas pelo celular ----
+  jobs: RemoteJobs // lista de jobs (alimentada pelo pipeline na cola com o Electron)
+  uploadsDir: string // pasta de envios; cada envio ganha uma subpasta aleatória
+  audioExts: string[] // extensões aceitas no envio (AUDIO_EXTENSIONS da biblioteca)
+  hasSong(id: string): boolean // a música já está na biblioteca
+  startLink(url: string): void // inicia o job de link sem esperar
+  startUpload(file: string): void // inicia o job do arquivo gravado; quem chama apaga a pasta no fim
+  cancelJob(id: string): void
 }
 
 const MAX_BODY = 4096
@@ -20,6 +44,14 @@ const PIN_LOCK_MS = 60_000 // ...por este tempo
 const CMDS_PER_SECOND = 30
 const MAX_TOKENS = 64 // limite de celulares logados; o mais antigo sai quando passa
 const SSE_MAX_BACKLOG = 256 * 1024 // cliente que não lê (rede morta) é derrubado em vez de crescer a memória
+const JSON_TIMEOUT_MS = 10_000 // pedido JSON (ou GET) que não chega inteiro neste tempo é cortado (slowloris)
+const UPLOAD_IDLE_MS = 60_000 // envio sem nenhum byte por este tempo é abortado; o envio inteiro NÃO tem limite de tempo
+const UPLOADS_PER_TOKEN = 2
+const UPLOADS_TOTAL = 4 // teto geral: vários tokens não enchem o disco juntos
+const JOBS_MIN_GAP_MS = 260 // SSE de jobs: no máximo 4 por segundo (juntando progressos)
+const UPLOAD_DIR_RE = /^[0-9a-f]{32}$/ // nome das subpastas que nós criamos
+// nomes que o Windows trata como dispositivo, mesmo com extensão
+const WIN_RESERVED_RE = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i
 
 // Host só como IP ou localhost: um site malicioso que aponta o próprio nome para o IP do PC
 // (DNS rebinding) chega aqui com o nome dele no Host e é recusado
@@ -90,6 +122,14 @@ export class RemoteServer {
   private guards = new Map<string, IpGuard>()
   private pingTimer: NodeJS.Timeout | null = null
   protected pingMs = 15_000
+  protected jsonTimeoutMs = JSON_TIMEOUT_MS
+  protected uploadIdleMs = UPLOAD_IDLE_MS
+  private uploadsByToken = new Map<string, number>()
+  private uploadAborts = new Set<AbortController>()
+  private jobsTimer: NodeJS.Timeout | null = null
+  private jobsLastAt = 0
+  private jobsLastFrame = ''
+  private unsubJobs: (() => void) | null = null
 
   constructor(protected deps: RemoteServerDeps) {}
 
@@ -100,11 +140,14 @@ export class RemoteServer {
       this.handle(req, res).catch((e) => {
         // nunca loga corpo, URL nem cabeçalhos (têm PIN e token)
         console.warn('[remote] erro no pedido:', e instanceof Error ? e.message : 'desconhecido')
-        if (!res.headersSent) this.json(res, 500, { error: 'internal' })
+        if (!res.headersSent) this.json(res, 500, { error: 'internal' }, { Connection: 'close' })
         else res.destroy()
       })
     })
-    server.requestTimeout = 10_000 // pedido incompleto (slowloris) é cortado; não afeta o SSE (é resposta)
+    // requestTimeout do Node cortaria QUALQUER pedido que leve mais de 10 s para chegar, inclusive um
+    // upload grande: fica desligado e o corte de 10 s é feito por pedido em handle() (só as rotas
+    // que não são upload); o upload tem a própria parada por falta de dados
+    server.requestTimeout = 0
     server.headersTimeout = 5_000
     server.keepAliveTimeout = 5_000
     server.maxConnections = 200
@@ -118,6 +161,7 @@ export class RemoteServer {
       server.listen(port, '0.0.0.0', () => {
         server.off('error', onListenError)
         server.on('error', (e) => console.warn('[remote] erro do servidor:', e.message))
+        this.unsubJobs = this.deps.jobs.onChange(() => this.scheduleJobs())
         resolve()
       })
     })
@@ -129,6 +173,11 @@ export class RemoteServer {
     this.server = null
     const had = this.sse.size
     this.stopPing()
+    this.unsubJobs?.()
+    this.unsubJobs = null
+    if (this.jobsTimer) clearTimeout(this.jobsTimer)
+    this.jobsTimer = null
+    this.abortUploads()
     for (const res of this.sse.keys()) res.destroy()
     this.sse.clear()
     this.tokens.clear()
@@ -155,6 +204,7 @@ export class RemoteServer {
   // derruba todos os tokens (novo PIN) e fecha as conexões de eventos
   invalidateTokens(): void {
     this.tokens.clear()
+    this.abortUploads() // envio em andamento era de um celular que acabou de perder o acesso
     this.dropAll()
   }
 
@@ -198,11 +248,26 @@ export class RemoteServer {
       '/api/state': 'GET',
       '/api/library': 'GET',
       '/api/events': 'GET',
-      '/api/cmd': 'POST'
+      '/api/cmd': 'POST',
+      '/api/add-link': 'POST',
+      '/api/upload': 'POST',
+      '/api/job-cancel': 'POST',
+      '/api/jobs': 'GET'
     }
     const want = allowed[path]
     if (!want) return this.reject(res, 404, { error: 'notfound' })
     if (method !== want) return this.reject(res, 405, { error: 'method' }, { Allow: want })
+
+    // pedido que não termina de chegar em 10 s é cortado (slowloris). O upload fica de fora: tem a própria regra
+    if (path !== '/api/upload') {
+      const timer = setTimeout(() => {
+        if (req.complete || res.headersSent) return
+        this.reject(res, 408, { error: 'timeout' })
+        setTimeout(() => req.socket.destroy(), 1000).unref()
+      }, this.jsonTimeoutMs)
+      timer.unref()
+      res.on('close', () => clearTimeout(timer))
+    }
 
     if (path === '/') return this.servePage(res)
     if (path === '/api/auth') return this.auth(req, res)
@@ -212,6 +277,10 @@ export class RemoteServer {
     if (!token) return this.reject(res, 401, { error: 'auth' })
     if (path === '/api/state') return this.rawJson(res, this.state)
     if (path === '/api/library') return this.json(res, 200, this.deps.getLibrary())
+    if (path === '/api/jobs') return this.json(res, 200, this.deps.jobs.list())
+    if (path === '/api/upload') return this.upload(req, res, token)
+    if (path === '/api/add-link') return this.addLink(req, res, token)
+    if (path === '/api/job-cancel') return this.jobCancel(req, res, token)
     return this.cmd(req, res, token)
   }
 
@@ -302,26 +371,193 @@ export class RemoteServer {
     return this.tokens.has(t) ? t : null
   }
 
-  private async cmd(req: IncomingMessage, res: ServerResponse, token: string): Promise<void> {
+  // 30 pedidos JSON por segundo por token (cmd, add-link, job-cancel dividem a mesma conta); true = passou
+  private rateOk(token: string, res: ServerResponse): boolean {
     const info = this.tokens.get(token)!
     const now = Date.now()
     if (now - info.windowStart >= 1000) {
       info.windowStart = now
       info.count = 0
     }
-    if (++info.count > CMDS_PER_SECOND) return this.reject(res, 429, { error: 'rate' }, { 'Retry-After': '1' })
-    if (!this.isJson(req)) return this.reject(res, 415, { error: 'type' })
-    const text = await readBody(req, MAX_BODY)
-    if (text === null) return this.reject(res, 413, { error: 'size' })
-    let cmd: RemoteCommand | null = null
-    try {
-      cmd = parseRemoteCommand(JSON.parse(text))
-    } catch {
-      cmd = null
+    if (++info.count > CMDS_PER_SECOND) {
+      this.reject(res, 429, { error: 'rate' }, { 'Retry-After': '1' })
+      return false
     }
+    return true
+  }
+
+  // corpo JSON de um POST: valida limite e tipo; null = já respondeu o erro
+  private async jsonBody(req: IncomingMessage, res: ServerResponse): Promise<unknown | null> {
+    if (!this.isJson(req)) {
+      this.reject(res, 415, { error: 'type' })
+      return null
+    }
+    const text = await readBody(req, MAX_BODY)
+    if (text === null) {
+      this.reject(res, 413, { error: 'size' })
+      return null
+    }
+    try {
+      return JSON.parse(text) ?? undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  private async cmd(req: IncomingMessage, res: ServerResponse, token: string): Promise<void> {
+    if (!this.rateOk(token, res)) return
+    const body = await this.jsonBody(req, res)
+    if (body === null) return
+    const cmd = parseRemoteCommand(body)
     if (!cmd) return this.json(res, 400, { error: 'command' })
     this.deps.onCommand(cmd)
     this.json(res, 200, { ok: true })
+  }
+
+  private async addLink(req: IncomingMessage, res: ServerResponse, token: string): Promise<void> {
+    if (!this.rateOk(token, res)) return
+    const body = await this.jsonBody(req, res)
+    if (body === null) return
+    const link = parseAddLink(body)
+    if (!link) return this.json(res, 400, { error: 'url' })
+    if (this.deps.hasSong(link.id)) return this.json(res, 200, { ok: true, id: link.id, exists: true })
+    if (this.deps.jobs.isActive(link.id)) return this.json(res, 409, { error: 'busy' })
+    this.deps.jobs.queue(link.id, link.id)
+    this.deps.startLink(link.url)
+    this.json(res, 202, { ok: true, id: link.id })
+  }
+
+  private async jobCancel(req: IncomingMessage, res: ServerResponse, token: string): Promise<void> {
+    if (!this.rateOk(token, res)) return
+    const body = await this.jsonBody(req, res)
+    if (body === null) return
+    const id = body && typeof body === 'object' ? (body as Record<string, unknown>).id : undefined
+    if (typeof id !== 'string' || id.length === 0 || id.length > 200) return this.json(res, 400, { error: 'id' })
+    if (!this.deps.jobs.isActive(id)) return this.json(res, 404, { error: 'notfound' })
+    this.deps.cancelJob(id)
+    this.deps.jobs.failActive(id, 'Cancelado') // o pipeline já avisa; isto cobre o job que ele não conhecia
+    this.json(res, 200, { ok: true })
+  }
+
+  // ---------- upload de arquivo ----------
+
+  private abortUploads(): void {
+    for (const ac of [...this.uploadAborts]) ac.abort(new Error('aborted'))
+  }
+
+  private async upload(req: IncomingMessage, res: ServerResponse, token: string): Promise<void> {
+    // tudo abaixo recusa ANTES de ler o corpo; reject() manda Connection: close
+    const rawName = rawQueryParam(req.url ?? '', 'name')
+    if (!rawName || rawName.length > 1000) return this.reject(res, 400, { error: 'name' })
+    // o nome fica codificado: safeUploadName decodifica uma vez só (searchParams decodificaria duas)
+    const safe = safeUploadName(rawName, this.deps.audioExts)
+    if (!safe) return this.reject(res, 415, { error: 'ext' })
+    if (!/^application\/octet-stream\s*(;|$)/i.test(req.headers['content-type'] ?? '')) return this.reject(res, 415, { error: 'type' })
+    const lenHeader = req.headers['content-length']
+    if (req.headers['transfer-encoding'] || typeof lenHeader !== 'string' || !/^\d{1,15}$/.test(lenHeader)) {
+      return this.reject(res, 411, { error: 'length' })
+    }
+    const declared = Number(lenHeader)
+    if (declared > MAX_UPLOAD_BYTES) return this.reject(res, 413, { error: 'size' })
+    if (declared === 0) return this.reject(res, 400, { error: 'empty' })
+    const mine = this.uploadsByToken.get(token) ?? 0
+    if (mine >= UPLOADS_PER_TOKEN || this.uploadAborts.size >= UPLOADS_TOTAL) return this.reject(res, 429, { error: 'uploads' })
+
+    // a partir daqui o envio ocupa uma vaga (contada antes de qualquer await)
+    this.uploadsByToken.set(token, mine + 1)
+    const ac = new AbortController()
+    this.uploadAborts.add(ac)
+    let idle: NodeJS.Timeout | undefined
+    const arm = (): void => {
+      clearTimeout(idle)
+      idle = setTimeout(() => ac.abort(new Error('idle')), this.uploadIdleMs)
+    }
+    const root = resolve(this.deps.uploadsDir)
+    const dir = join(root, randomBytes(16).toString('hex'))
+    let made = false
+    // a vaga volta assim que o envio acaba (antes de apagar a pasta, que pode demorar)
+    let released = false
+    const release = (): void => {
+      if (released) return
+      released = true
+      this.uploadAborts.delete(ac)
+      const left = (this.uploadsByToken.get(token) ?? 1) - 1
+      if (left > 0) this.uploadsByToken.set(token, left)
+      else this.uploadsByToken.delete(token)
+    }
+    try {
+      const stem = safe.slice(0, safe.lastIndexOf('.'))
+      const fileName = WIN_RESERVED_RE.test(stem) ? `_${safe}` : safe
+      const file = join(dir, fileName)
+      // pasta aleatória nossa dentro da pasta de envios, arquivo direto dentro dela: nada fora disso
+      const rel = relative(root, dir)
+      if (rel === '' || rel.startsWith('..') || isAbsolute(rel) || dirname(file) !== dir) throw new Error('caminho fora da pasta de envios')
+      await mkdir(dir, { recursive: true })
+      made = true
+
+      let got = 0
+      const counter = new Transform({
+        transform(chunk: Buffer, _enc, cb) {
+          got += chunk.length
+          if (got > declared) return cb(new Error('over'))
+          arm()
+          cb(null, chunk)
+        }
+      })
+      arm()
+      await pipeline(req, counter, createWriteStream(file, { flags: 'wx', mode: 0o600 }), { signal: ac.signal })
+      if (got !== declared) throw new Error('short')
+      clearTimeout(idle)
+
+      const id = localSongId(file)
+      this.deps.jobs.queue(id, stem)
+      try {
+        this.deps.startUpload(file)
+      } catch (e) {
+        this.deps.jobs.failActive(id, 'Não foi possível iniciar')
+        throw e
+      }
+      made = false // daqui em diante a pasta é do job; quem chamou apaga ao terminar
+      this.json(res, 202, { ok: true, id }, { Connection: 'close' })
+    } catch (e) {
+      clearTimeout(idle)
+      release()
+      if (made) await rmDir(dir)
+      const reason = ac.signal.aborted ? ac.signal.reason : e // abort() troca o erro por um AbortError genérico; o motivo fica em reason
+      const msg = reason instanceof Error ? reason.message : ''
+      // conexão que caiu, parou ou foi derrubada já não tem a quem responder
+      if (!res.headersSent && res.socket && !res.socket.destroyed) {
+        if (msg === 'over') this.reject(res, 413, { error: 'size' })
+        else if (msg === 'idle') this.reject(res, 408, { error: 'timeout' })
+        else if (msg === 'aborted') this.reject(res, 401, { error: 'auth' }) // novo PIN ou servidor parando
+        else this.reject(res, 500, { error: 'internal' })
+      }
+      // log sem caminho, nome, token nem cabeçalho
+      console.warn('[remote] envio abortado:', msg === 'idle' || msg === 'over' || msg === 'aborted' ? msg : 'erro')
+    } finally {
+      clearTimeout(idle)
+      release()
+    }
+  }
+
+  // ---------- SSE de jobs ----------
+
+  // no máximo 4 quadros por segundo: a primeira mudança sai logo, as seguintes esperam e viram um só quadro
+  private scheduleJobs(): void {
+    if (this.sse.size === 0 || this.jobsTimer) return
+    const wait = Math.max(0, this.jobsLastAt + JOBS_MIN_GAP_MS - Date.now())
+    this.jobsTimer = setTimeout(() => {
+      this.jobsTimer = null
+      const frame = this.jobsFrame()
+      if (frame === this.jobsLastFrame) return
+      this.jobsLastFrame = frame
+      this.jobsLastAt = Date.now()
+      for (const res of [...this.sse.keys()]) this.write(res, frame)
+    }, wait)
+  }
+
+  private jobsFrame(): string {
+    return `event: jobs\ndata: ${JSON.stringify(this.deps.jobs.list())}\n\n`
   }
 
   private events(req: IncomingMessage, res: ServerResponse, token: string | null): void {
@@ -337,6 +573,7 @@ export class RemoteServer {
     req.socket.setTimeout(0) // sem timeout de ociosidade: o ping de 15 s mantém vivo
     res.write(': conectado\n\n') // abre o fluxo já (headers saem junto)
     if (this.state !== 'null') res.write(`event: state\ndata: ${this.state}\n\n`)
+    res.write(this.jobsFrame()) // sempre, mesmo vazio ([]), para a página saber o ponto de partida
     this.sse.set(res, token)
     res.on('close', () => this.dropClient(res))
     this.startPing()
@@ -380,4 +617,56 @@ export class RemoteServer {
     if (this.pingTimer) clearInterval(this.pingTimer)
     this.pingTimer = null
   }
+}
+
+// valor ainda codificado de ?chave=... (URLSearchParams já decodifica, e o nome do arquivo precisa chegar cru)
+function rawQueryParam(rawUrl: string, key: string): string | null {
+  const q = rawUrl.split('?')[1]
+  if (!q) return null
+  for (const part of q.split('&')) {
+    if (part.startsWith(key + '=')) return part.slice(key.length + 1)
+  }
+  return null
+}
+
+// apaga uma subpasta de envio (só a que tem o nome aleatório que nós criamos)
+async function rmDir(dir: string): Promise<void> {
+  try {
+    if (UPLOAD_DIR_RE.test(dir.split(/[\\/]/).pop() ?? '')) await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+  } catch {
+    // no Windows um arquivo ainda aberto pode resistir; a limpeza das 24 h pega depois
+  }
+}
+
+// o job de um envio terminou: apaga a subpasta dele (file = caminho que foi para startUpload)
+export async function removeUploadFolder(uploadsDir: string, file: string): Promise<void> {
+  const dir = dirname(resolve(file))
+  const rel = relative(resolve(uploadsDir), dir)
+  if (!UPLOAD_DIR_RE.test(rel)) return // só filho direto da pasta de envios com o nome aleatório
+  await rmDir(dir)
+}
+
+// ao subir: apaga subpastas de envio com mais de maxAgeMs (sobras de queda do app)
+export async function pruneUploads(uploadsDir: string, maxAgeMs: number, now = Date.now()): Promise<number> {
+  let removed = 0
+  let names: string[]
+  try {
+    names = await readdir(uploadsDir)
+  } catch {
+    return 0
+  }
+  for (const n of names) {
+    if (!UPLOAD_DIR_RE.test(n)) continue
+    const dir = join(uploadsDir, n)
+    try {
+      const st = await lstat(dir) // lstat: link simbólico não é seguido
+      if (st.isDirectory() && now - st.mtimeMs > maxAgeMs) {
+        await rm(dir, { recursive: true, force: true })
+        removed++
+      }
+    } catch {
+      // sumiu no meio: ok
+    }
+  }
+  return removed
 }
