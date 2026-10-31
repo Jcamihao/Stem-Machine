@@ -259,7 +259,9 @@ app.whenReady().then(async () => {
       loadSongs().map((s) => {
         const chords = loadChords(s.videoId)
         const key = chords ? detectKey(chords.chords) : null
-        return [s.videoId, { bpm: loadBeats(s.videoId)?.bpm ?? null, key: key ? keyName(key) : null }]
+        const semitones = loadMix(s.videoId)?.semitones
+        const shift = Number.isInteger(semitones) ? (semitones as number) : 0
+        return [s.videoId, { bpm: loadBeats(s.videoId)?.bpm ?? null, key: key ? keyName(key) : null, keyShift: key ? keyName(key, shift) : null }]
       })
     )
   )

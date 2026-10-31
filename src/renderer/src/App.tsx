@@ -14,8 +14,8 @@ import { About } from './components/About'
 import { LogoMark } from './components/Icons'
 import { pad } from './lib/pad'
 import { registerCommandHandler } from './lib/commands'
-import { stepSong } from './lib/scenes'
-import { ScenesPanel } from './components/ScenesPanel'
+import { stepSong, type SceneSong } from './lib/scenes'
+import { ScenesPanel, type SongMeta } from './components/ScenesPanel'
 import { MidiPanel } from './components/MidiPanel'
 import { midi } from './lib/midi'
 import { RemotePanel } from './components/RemotePanel'
@@ -69,6 +69,7 @@ export default function App(): React.ReactElement {
   const [scenes, setScenes] = useState<Scene[]>([])
   const [scenesOpen, setScenesOpen] = useState(false)
   const [midiOpen, setMidiOpen] = useState(false)
+  const [meta, setMeta] = useState<SongMeta>({}) // tom (com transposição salva) e BPM de cada música
   const [remoteOpen, setRemoteOpen] = useState(false)
   const [activeScene, setActiveScene] = useState<{ id: string; index: number } | null>(null)
   const [autoPlay, setAutoPlay] = useState(false) // a música aberta pela cena já começa tocando
@@ -193,6 +194,11 @@ export default function App(): React.ReactElement {
     [jobs]
   )
 
+  // tom e BPM para o setlist: refaz quando a biblioteca muda, ao abrir outra música (a transposição pode ter mudado) e ao abrir o painel
+  useEffect(() => {
+    void window.stemkit.libraryMeta().then(setMeta)
+  }, [songs, activeId, scenesOpen])
+
   const saveScenes = useCallback((next: Scene[]): void => {
     setScenes(next)
     void window.stemkit.saveScenes(next).then(setScenes)
@@ -249,6 +255,20 @@ export default function App(): React.ReactElement {
   )
   const stepSceneRef = useRef(stepScene)
   stepSceneRef.current = stepScene
+
+  // pula para qualquer música do setlist em andamento (gaveta do player)
+  const jumpScene = useCallback(
+    (index: number): void => {
+      const scene = scenes.find((sc) => sc.id === activeScene?.id)
+      const id = scene?.songs[index]
+      if (!scene || !activeScene || !id || !songs.some((s) => s.videoId === id)) return
+      setAutoPlay(false)
+      setActiveScene({ id: scene.id, index })
+      setActiveId(id)
+      padForSong(id)
+    },
+    [scenes, activeScene, songs]
+  )
   // o handler é registrado uma vez: lê sempre a versão atual de songs/scenes/playScene
   const openRef = useRef({ songs, scenes, playScene })
   openRef.current = { songs, scenes, playScene }
@@ -406,8 +426,15 @@ export default function App(): React.ReactElement {
           name: currentScene.name,
           index: activeScene.index,
           total: currentScene.songs.length,
+          songs: currentScene.songs.map((id): SceneSong => {
+            const song = songs.find((s) => s.videoId === id)
+            return song
+              ? { id, title: song.title || id, key: meta[id]?.keyShift ?? null, bpm: meta[id]?.bpm ?? null, duration: song.duration }
+              : { id, title: '', key: null, bpm: null, duration: 0, missing: true }
+          }),
           onPrev: stepSong(currentScene, activeScene.index, -1, (id) => songs.some((s) => s.videoId === id)) !== null ? () => stepScene(-1) : undefined,
-          onNext: stepSong(currentScene, activeScene.index, 1, (id) => songs.some((s) => s.videoId === id)) !== null ? () => stepScene(1) : undefined
+          onNext: stepSong(currentScene, activeScene.index, 1, (id) => songs.some((s) => s.videoId === id)) !== null ? () => stepScene(1) : undefined,
+          onJump: jumpScene
         }
       : undefined
 
@@ -501,6 +528,7 @@ export default function App(): React.ReactElement {
         <ScenesPanel
           songs={songs}
           scenes={scenes}
+          meta={meta}
           autoAdvance={!!settings?.sceneAutoAdvance}
           padBetween={!!settings?.padBetween}
           onPadBetween={(on) => void window.stemkit.setSettings({ padBetween: on })}

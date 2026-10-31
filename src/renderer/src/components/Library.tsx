@@ -83,7 +83,7 @@ function RowMenu({ song, onOpen, onDelete }: { song: Song; onOpen: () => void; o
 export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd, onOpenScenes, onOpenMidi, onOpenRemote, onOpenSettings }: Props): React.ReactElement {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean }>({ key: 'date', asc: false })
-  const [meta, setMeta] = useState<Record<string, { bpm: number | null; key: string | null }>>({})
+  const [meta, setMeta] = useState<Record<string, { bpm: number | null; key: string | null; keyShift: string | null }>>({})
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   // BPM vem do arquivo de batidas de cada música: recarrega quando a lista muda
@@ -165,8 +165,8 @@ export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd,
             <path d="M8 4v16m0 0-4-4m4 4 4-4M16 20V4m0 0-4 4m4-4 4 4" />
           </svg>
         </button>
-        <button onClick={onOpenScenes} title="Cenas (setlist): músicas em ordem" className="no-drag h-8 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]">
-          Cenas
+        <button onClick={onOpenScenes} title="Setlist: monte a ordem das músicas do dia" className="no-drag h-8 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]">
+          Setlist
         </button>
         <button onClick={onOpenMidi} title="Controle MIDI: teclado ou pad controla o app" className="no-drag h-8 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]">
           MIDI

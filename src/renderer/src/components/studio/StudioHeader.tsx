@@ -120,7 +120,15 @@ interface Props {
   exportItems: MenuItem[]
   menuItems: MenuItem[]
   outputSplit?: boolean
-  scene?: { name: string; index: number; total: number; onPrev?: () => void; onNext?: () => void }
+  scene?: {
+    name: string
+    index: number
+    total: number
+    onPrev?: () => void
+    onNext?: () => void
+    onOpen: () => void // abre a gaveta do setlist
+    next?: { title: string; key: string | null; bpm: number | null } // a seguinte, para se preparar
+  }
 }
 
 export function StudioHeader(p: Props): React.ReactElement {
@@ -135,11 +143,21 @@ export function StudioHeader(p: Props): React.ReactElement {
       </div>
       <h1 className="flex-1 min-w-0 text-[15px] font-bold truncate">{p.title}</h1>
       {p.scene && (
-        <div className="flex items-center gap-1 h-9 pl-3 pr-1 rounded-md bg-[#1e1e1e] text-[12px] font-semibold" title="Cena em andamento">
-          <span className="max-w-[160px] truncate">{p.scene.name}</span>
-          <span className="text-white/45 mr-1">{p.scene.index + 1}/{p.scene.total}</span>
-          <button onClick={p.scene.onPrev} disabled={!p.scene.onPrev} title="Música anterior da cena" className="no-drag w-7 h-7 rounded hover:bg-white/10 disabled:opacity-30">◀</button>
-          <button onClick={p.scene.onNext} disabled={!p.scene.onNext} title="Próxima música da cena" className="no-drag w-7 h-7 rounded hover:bg-white/10 disabled:opacity-30">▶</button>
+        <div className="flex items-center gap-3 min-w-0">
+          {p.scene.next && (
+            <div className="hidden xl:block max-w-[260px] truncate text-[11px] text-white/55" title="A próxima música do setlist">
+              Próxima: <span className="text-white/85 font-semibold">{p.scene.next.title}</span>
+              {[p.scene.next.key, p.scene.next.bpm ? `${Math.round(p.scene.next.bpm)} BPM` : null].filter(Boolean).map((t) => ` · ${t}`).join('')}
+            </div>
+          )}
+          <div className="flex items-center gap-1 h-9 pl-1 pr-1 rounded-md bg-[#1e1e1e] text-[12px] font-semibold shrink-0" title="Setlist em andamento">
+            <button onClick={p.scene.onOpen} title="Abrir o setlist: pular para qualquer música" className="no-drag flex items-center gap-1.5 h-7 px-2 rounded hover:bg-white/10">
+              <span className="max-w-[150px] truncate">{p.scene.name}</span>
+              <span className="text-white/45">{p.scene.index + 1}/{p.scene.total}</span>
+            </button>
+            <button onClick={p.scene.onPrev} disabled={!p.scene.onPrev} title="Música anterior do setlist" className="no-drag w-7 h-7 rounded hover:bg-white/10 disabled:opacity-30">◀</button>
+            <button onClick={p.scene.onNext} disabled={!p.scene.onNext} title="Próxima música do setlist" className="no-drag w-7 h-7 rounded hover:bg-white/10 disabled:opacity-30">▶</button>
+          </div>
         </div>
       )}
       <div className="flex items-center gap-2.5">

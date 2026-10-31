@@ -20,6 +20,8 @@ import { ChordNow, ChordStrip } from './studio/ChordStrip'
 import { formatChord } from '../lib/chords'
 import { detectKey, keyName } from '../../../shared/key'
 import { pad } from '../lib/pad'
+import type { SceneView } from '../lib/scenes'
+import { SetlistDrawer } from './SetlistDrawer'
 import * as remote from '../lib/remote'
 import { SECTION_NAMES } from '../../../shared/midi'
 import { buildMix, parseMix } from '../lib/mix'
@@ -85,7 +87,7 @@ interface Props {
   song: Song
   settings?: AppSettings
   onBack: () => void
-  scene?: { name: string; index: number; total: number; onPrev?: () => void; onNext?: () => void }
+  scene?: SceneView
   onEnded?: () => void // a música chegou ao fim tocando (a cena pode abrir a próxima)
   autoPlay?: boolean // abre já tocando (avanço automático da cena)
   onPlayStart?: () => void // a música começou a tocar (o pad entre músicas sai de cena)
@@ -147,6 +149,7 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
   const [sectionsBusy, setSectionsBusy] = useState(false)
   const [sectionsError, setSectionsError] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
+  const [setlistOpen, setSetlistOpen] = useState(false)
   // velocidade (0.5–1.5), transposição (semitons) e afinação (A4 em Hz): em tempo real
   const [speed, setSpeed] = useState(1)
   const [semitones, setSemitones] = useState(0)
@@ -1027,8 +1030,24 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
         exportItems={exportItems}
         menuItems={menuItems}
         outputSplit={outputSplit}
-        scene={scene}
+        scene={
+          scene && {
+            name: scene.name,
+            index: scene.index,
+            total: scene.total,
+            onPrev: scene.onPrev,
+            onNext: scene.onNext,
+            onOpen: () => setSetlistOpen(true),
+            next: (() => {
+              const n = scene.songs.find((s, i) => i > scene.index && !s.missing)
+              return n ? { title: n.title, key: n.key, bpm: n.bpm } : undefined
+            })()
+          }
+        }
       />
+      {scene && setlistOpen && (
+        <SetlistDrawer name={scene.name} index={scene.index} songs={scene.songs} onJump={scene.onJump} onClose={() => setSetlistOpen(false)} />
+      )}
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="relative pr-3">

@@ -252,7 +252,8 @@ export interface StemKitApi {
   readPad(id: string): Promise<Uint8Array>
   addStems(videoId: string, stems: string[]): Promise<void>
   getSections(videoId: string): Promise<SectionMap | null>
-  libraryMeta(): Promise<Record<string, { bpm: number | null; key: string | null }>>
+  // key = tom original; keyShift = já com a transposição salva na mixagem da música
+  libraryMeta(): Promise<Record<string, { bpm: number | null; key: string | null; keyShift: string | null }>>
   getChords(videoId: string): Promise<ChordMap | null>
   analyzeChords(videoId: string): Promise<ChordMap>
   saveChords(videoId: string, map: ChordMap): Promise<void>

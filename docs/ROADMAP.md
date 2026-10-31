@@ -24,9 +24,9 @@ Evolução das cenas: montar o setlist do dia e transitar entre as músicas sem 
 
 | # | Item | Esforço |
 |---|------|---------|
-| S1 | **Montar rápido:** buscar na biblioteca, duplicar o setlist de outro dia, ordenar | M |
-| S2 | **Modo ao vivo:** tela com o setlist inteiro, música atual e próxima em destaque, pular para qualquer uma com um toque | M |
-| S3 | **Transição contínua:** emendar uma música na outra com o pad (item 6), tom da próxima visível | M |
+| S1 | **Montar rápido:** buscar na biblioteca, duplicar o setlist de outro dia, ordenar | M | **feito** (v0.9.0) |
+| S2 | **Modo ao vivo:** tela com o setlist inteiro, música atual e próxima em destaque, pular para qualquer uma com um toque | M | **feito** (v0.9.0, gaveta no player) |
+| S3 | **Transição contínua:** emendar uma música na outra com o pad (item 6), tom da próxima visível | M | **feito** (pad entre músicas + "Próxima: título · tom · BPM") |
 | S4 | **Setlist no celular:** lista e pulo de música pelo controle remoto (depende do item 4) | M |
 | S5 | **Tom por música dentro do setlist** (hoje o tom vem da mixagem salva da música) | P |
 
