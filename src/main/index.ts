@@ -35,6 +35,7 @@ import { startJob, startLocalJob, cancelJob, searchYouTube, analyzeBeats, addSte
 import { initUpdater } from './updater'
 import { guideClips } from './voice'
 import { loadScenes, saveScenes } from './scenes'
+import { initRemote } from './remote'
 import { listPads, importPad, updatePad, removePad, readPad } from './pads'
 import { detectKey, keyName, shiftedTonic } from '../shared/key'
 import { runSmoke } from './smoke'
@@ -445,6 +446,7 @@ app.whenReady().then(async () => {
 
   await detectTools()
   await createWindow()
+  initRemote(() => mainWindow)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow()

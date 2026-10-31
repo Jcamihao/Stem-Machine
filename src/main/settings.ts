@@ -4,6 +4,7 @@ import { BrowserWindow } from 'electron'
 import { userDataDir } from './env'
 import { DEFAULT_SETTINGS, type AppSettings } from '../shared/types'
 import { cleanMidiMap } from '../shared/midi'
+import { PIN_RE } from '../shared/remote'
 
 function settingsFile(): string {
   return join(userDataDir(), 'settings.json')
@@ -40,7 +41,9 @@ export function saveSettings(patch: Partial<AppSettings>): AppSettings {
     sectionSwitch: merged.sectionSwitch === 'now' ? 'now' : 'bar',
     sceneAutoAdvance: !!merged.sceneAutoAdvance,
     padBetween: !!merged.padBetween,
-    midiMap: cleanMidiMap(merged.midiMap)
+    midiMap: cleanMidiMap(merged.midiMap),
+    remoteEnabled: !!merged.remoteEnabled,
+    remotePin: typeof merged.remotePin === 'string' && PIN_RE.test(merged.remotePin) ? merged.remotePin : ''
   }
   writeFileSync(settingsFile(), JSON.stringify(next, null, 2))
   for (const win of BrowserWindow.getAllWindows()) {

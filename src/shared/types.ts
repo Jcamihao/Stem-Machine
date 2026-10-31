@@ -1,3 +1,4 @@
+import type { RemoteState, RemoteStatus, RemoteCommand } from './remote'
 // 'click' e 'guide' não vêm da separação: são gerados no player (batidas e seções)
 export type StemId = 'vocals' | 'drums' | 'bass' | 'other' | 'piano' | 'guitar' | 'click' | 'guide'
 
@@ -55,6 +56,9 @@ export interface AppSettings {
   padBetween: boolean
   // controle MIDI: tecla ("note:1:60", "cc:1:64") -> id da ação (shared/midi.ts)
   midiMap: Record<string, string>
+  // controle pelo celular: servidor na rede local, desligado por padrão
+  remoteEnabled: boolean
+  remotePin: string // 6 dígitos, gerado na primeira vez que liga
 }
 
 // mixagem salva por música (mix.json): só o que difere do padrão
@@ -104,7 +108,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sectionSwitch: 'bar',
   sceneAutoAdvance: false,
   padBetween: false,
-  midiMap: {}
+  midiMap: {},
+  remoteEnabled: false,
+  remotePin: ''
 }
 
 export interface EngineStatus {
@@ -229,6 +235,12 @@ export interface StemKitApi {
   getGuideClips(): Promise<Record<string, Uint8Array>>
   // nota do pad (0 = C ... 11 = B) para a música: tom dos acordes + transposição salva; null = sem acordes
   songPadKey(videoId: string): Promise<number | null>
+  remoteStatus(): Promise<RemoteStatus>
+  remoteSetEnabled(on: boolean): Promise<RemoteStatus>
+  remoteNewPin(): Promise<RemoteStatus>
+  publishRemoteState(state: RemoteState): void // o app avisa o servidor do que mostrar no celular
+  onRemoteCommand(cb: (command: RemoteCommand) => void): () => void
+  onRemoteStatus(cb: (status: RemoteStatus) => void): () => void
   listScenes(): Promise<Scene[]>
   saveScenes(scenes: Scene[]): Promise<Scene[]>
   getMix(videoId: string): Promise<MixState | null>
