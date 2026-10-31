@@ -45,6 +45,18 @@ Hoje: o app detecta as partes sozinho (modelo all-in-one) e você pode mover o l
 
 Ordem sugerida: SE1 e SE2 primeiro (resolvem o dia a dia sem esperar a detecção ficar perfeita); SE4 depois, com os dados das suas correções.
 
+## Celular: adicionar músicas (pedido em 2026-10-31)
+
+Hoje o celular só controla o que já está na biblioteca. Pedido: colocar links do YouTube e arquivos de áudio direto pelo celular, e a separação roda no PC. Proposta inicial, a detalhar antes de implementar.
+
+| # | Item | Esforço |
+|---|------|---------|
+| CA1 | **Link do YouTube pelo celular:** colar o link na página, o PC baixa e separa | M |
+| CA2 | **Arquivo de áudio pelo celular:** enviar do iPhone (Arquivos, Gravador, iCloud) para o PC, com barra de progresso | M |
+| CA3 | **Fila e progresso no celular:** "na fila", baixando, separando %, concluída, erro e cancelar; a música nova aparece na aba Músicas | M |
+
+Depende do item 4 (controle pelo celular, feito). Faz sentido junto com o S4.
+
 ## Depois
 
 | # | Item | Esforço |
