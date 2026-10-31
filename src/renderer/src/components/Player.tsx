@@ -740,6 +740,17 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
       case 'click':
         toggleClick()
         return true
+      case 'loop':
+        toggleLoop()
+        return true
+      case 'goToNext': {
+        const list = sections?.sections ?? []
+        const here = list.findIndex((s) => posRef.current >= s.start && posRef.current < s.end)
+        const next = list.findIndex((s, i) => i > here && s.label === c.label)
+        if (next < 0) return false
+        goToSection(next)
+        return true
+      }
       default:
         return false
     }

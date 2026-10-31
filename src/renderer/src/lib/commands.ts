@@ -11,6 +11,8 @@ export type Command =
   | { type: 'semitones'; delta: number }
   | { type: 'bpm'; delta: number }
   | { type: 'click' }
+  | { type: 'loop' } // liga/desliga o loop A–B
+  | { type: 'goToNext'; label: string } // próxima parte com esse nome (ex.: 'chorus') depois da posição atual
   | { type: 'pad'; key?: number } // sem nota: liga/desliga o pad
   | { type: 'nextSong' }
   | { type: 'prevSong' }

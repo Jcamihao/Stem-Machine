@@ -31,6 +31,7 @@ interface Props {
   onDelete: (videoId: string) => void
   onAdd: () => void
   onOpenScenes: () => void
+  onOpenMidi: () => void
   onOpenSettings: () => void
 }
 
@@ -78,7 +79,7 @@ function RowMenu({ song, onOpen, onDelete }: { song: Song; onOpen: () => void; o
 
 /* biblioteca em tabela: título (capa, nome, origem), data, gênero, BPM, tom,
    duração. Tom vem dos acordes; gênero ainda não é detectado ("–") */
-export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd, onOpenScenes, onOpenSettings }: Props): React.ReactElement {
+export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd, onOpenScenes, onOpenMidi, onOpenSettings }: Props): React.ReactElement {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean }>({ key: 'date', asc: false })
   const [meta, setMeta] = useState<Record<string, { bpm: number | null; key: string | null }>>({})
@@ -165,6 +166,9 @@ export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd,
         </button>
         <button onClick={onOpenScenes} title="Cenas (setlist): músicas em ordem" className="no-drag h-8 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]">
           Cenas
+        </button>
+        <button onClick={onOpenMidi} title="Controle MIDI: teclado ou pad controla o app" className="no-drag h-8 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]">
+          MIDI
         </button>
         <PadButton className="no-drag flex items-center gap-2 h-8 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]" />
         <button onClick={onOpenSettings} title="Configurações" className="no-drag w-8 h-8 rounded-md bg-[#1e1e1e] text-white/80 hover:text-white flex items-center justify-center">

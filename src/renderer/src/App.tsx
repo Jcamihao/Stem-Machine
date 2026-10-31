@@ -16,6 +16,8 @@ import { pad } from './lib/pad'
 import { registerCommandHandler } from './lib/commands'
 import { stepSong } from './lib/scenes'
 import { ScenesPanel } from './components/ScenesPanel'
+import { MidiPanel } from './components/MidiPanel'
+import { midi } from './lib/midi'
 
 interface EnvLog {
   message: string
@@ -64,6 +66,7 @@ export default function App(): React.ReactElement {
   // cenas (setlist): a cena em andamento guarda em qual música ela está
   const [scenes, setScenes] = useState<Scene[]>([])
   const [scenesOpen, setScenesOpen] = useState(false)
+  const [midiOpen, setMidiOpen] = useState(false)
   const [activeScene, setActiveScene] = useState<{ id: string; index: number } | null>(null)
   const [autoPlay, setAutoPlay] = useState(false) // a música aberta pela cena já começa tocando
 
@@ -106,6 +109,14 @@ export default function App(): React.ReactElement {
   // o pad vive fora do player: preferências e saída L/R vêm daqui
   useEffect(() => {
     if (settings) pad.applySettings(settings)
+  }, [settings])
+
+  // MIDI escuta em qualquer tela (o mapa vem das configurações)
+  useEffect(() => {
+    void midi.start()
+  }, [])
+  useEffect(() => {
+    if (settings) midi.applySettings(settings)
   }, [settings])
 
   useEffect(() => {
@@ -419,6 +430,7 @@ export default function App(): React.ReactElement {
         onDelete={(id) => void deleteSong(id)}
         onAdd={() => setAdding(true)}
         onOpenScenes={() => setScenesOpen(true)}
+        onOpenMidi={() => setMidiOpen(true)}
         onOpenSettings={openSettings}
       />
     )
@@ -449,6 +461,7 @@ export default function App(): React.ReactElement {
           onClose={() => setScenesOpen(false)}
         />
       )}
+      {midiOpen && <MidiPanel onClose={() => setMidiOpen(false)} />}
       {aboutOpen && <About version={appVersion} onClose={() => setAboutOpen(false)} />}
     </div>
   )

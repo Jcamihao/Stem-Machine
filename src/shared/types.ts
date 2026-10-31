@@ -53,6 +53,8 @@ export interface AppSettings {
   sceneAutoAdvance: boolean
   // numa cena, ao passar para a próxima música o pad entra no tom dela e some quando ela der play
   padBetween: boolean
+  // controle MIDI: tecla ("note:1:60", "cc:1:64") -> id da ação (shared/midi.ts)
+  midiMap: Record<string, string>
 }
 
 // mixagem salva por música (mix.json): só o que difere do padrão
@@ -101,7 +103,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   padTransition: 'slow',
   sectionSwitch: 'bar',
   sceneAutoAdvance: false,
-  padBetween: false
+  padBetween: false,
+  midiMap: {}
 }
 
 export interface EngineStatus {
