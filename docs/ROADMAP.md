@@ -51,9 +51,9 @@ Hoje o celular só controla o que já está na biblioteca. Pedido: colocar links
 
 | # | Item | Esforço |
 |---|------|---------|
-| CA1 | **Link do YouTube pelo celular:** colar o link na página, o PC baixa e separa | M |
-| CA2 | **Arquivo de áudio pelo celular:** enviar do iPhone (Arquivos, Gravador, iCloud) para o PC, com barra de progresso | M |
-| CA3 | **Fila e progresso no celular:** "na fila", baixando, separando %, concluída, erro e cancelar; a música nova aparece na aba Músicas | M |
+| CA1 | **Link do YouTube pelo celular:** colar o link na página, o PC baixa e separa | M | **feito** (v0.10.0; o download real de um link ainda não foi testado, só as respostas e o caso "já existe") |
+| CA2 | **Arquivo de áudio pelo celular:** enviar do iPhone (Arquivos, Gravador, iCloud) para o PC, com barra de progresso | M | **feito** (v0.10.0; falta testar no iPhone de verdade) |
+| CA3 | **Fila e progresso no celular:** "na fila", baixando, separando %, concluída, erro e cancelar; a música nova aparece na aba Músicas | M | **feito** (v0.10.0) |
 
 Depende do item 4 (controle pelo celular, feito). Faz sentido junto com o S4.
 
