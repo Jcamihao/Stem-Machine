@@ -34,7 +34,7 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
 
 /* abas */
 #tabs{flex:none;display:flex;background:#141414;border-top:1px solid var(--line);padding:0 var(--sr) var(--sb) var(--sl)}
-.tab{flex:1;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mut);font-size:15px;font-weight:700;letter-spacing:.2px}
+.tab{position:relative;flex:1;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mut);font-size:15px;font-weight:700;letter-spacing:.2px}
 .tab .ic{font-size:22px;line-height:1;margin-bottom:4px}
 .tab[aria-selected=true]{color:var(--acc);box-shadow:inset 0 3px 0 var(--acc)}
 
@@ -145,6 +145,46 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
 .msg{padding:20px;text-align:center;color:var(--mut)}
 .msg .btn{margin-top:14px}
 
+/* ---------- adicionar ---------- */
+#add-wrap{max-width:760px;margin:0 auto}
+#add-wrap .card{margin-bottom:14px}
+.inp{display:block;width:100%;height:56px;border-radius:14px;border:2px solid var(--line);background:#141414;color:var(--fg);padding:0 16px;font-size:18px;margin-bottom:10px;
+  -webkit-user-select:text;user-select:text;outline:none;-webkit-appearance:none;appearance:none}
+.inp:focus{border-color:var(--acc)}
+.bigbtn{display:block;width:100%;min-height:56px;border-radius:14px;background:var(--acc);color:#04130c;font-size:19px;font-weight:900}
+.bigbtn:active{filter:brightness(.85)}
+.bigbtn:disabled{opacity:.4}
+.bigbtn.alt{background:var(--card2);color:var(--fg)}
+.sbtn{display:block;flex:none;min-width:104px;min-height:56px;padding:0 14px;border-radius:12px;background:var(--card2);color:var(--fg);font-size:17px;font-weight:800;text-align:center}
+.jc .sbtn{background:#3d3d3d}
+.sbtn:active,.jc .sbtn:active{background:#505050}
+.sbtn:disabled{opacity:.4}
+.sbtn.pri{background:var(--acc);color:#04130c}
+.sbtn.pri:active{filter:brightness(.85);background:var(--acc)}
+.sbtn.dng{color:var(--red)}
+.fmsg:empty{display:none}
+.fmsg{margin:10px 2px 0;font-size:17px;font-weight:700;color:var(--mut);overflow-wrap:anywhere}
+.fmsg.ok{color:var(--acc)}.fmsg.err{color:var(--red)}.fmsg.info{color:var(--amb)}
+.fmsg .sbtn{margin-top:10px;width:100%}
+.fnote{margin:12px 2px 0;color:var(--mut);font-size:14px;line-height:1.35}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;left:0;top:0}
+.jlist{display:flex;flex-direction:column;gap:10px}
+.jlist:empty{display:none}
+.jc{display:flex;align-items:center;gap:12px;background:var(--card2);border-radius:14px;padding:12px}
+.jc .jl{flex:1;min-width:0}
+.jc .jt{font-size:19px;font-weight:800;line-height:1.2;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.jc .js{margin:4px 0 8px;font-size:16px;font-weight:700;color:var(--mut);overflow-wrap:anywhere}
+.jc .js.ok{color:var(--acc)}.jc .js.err{color:var(--red)}
+.jc .ja{flex:none;display:flex;flex-direction:column;gap:8px}
+.jb{height:8px;background:#444;border-radius:4px;overflow:hidden;position:relative}
+.jb i{display:block;height:100%;width:100%;background:var(--acc);transform-origin:left center;-webkit-transform:scaleX(0);transform:scaleX(0);transition:transform .25s linear}
+.jb.err i{background:var(--red)}
+.jb.ind i{width:40%;transition:none;-webkit-transform:none;transform:none;animation:slide 1.1s ease-in-out infinite}
+@keyframes slide{0%{margin-left:-40%}100%{margin-left:100%}}
+.jempty{padding:18px 8px;text-align:center;color:var(--mut)}
+.tab .ic{position:relative}
+.badge{position:absolute;top:-7px;left:60%;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--amb);color:#1c1400;font-size:14px;font-weight:900;line-height:22px;text-align:center;letter-spacing:0}
+
 /* toast */
 #toast{position:fixed;left:50%;bottom:calc(84px + var(--sb));transform:translateX(-50%);max-width:88%;background:#fafafa;color:#0a0a0a;font-weight:800;padding:12px 18px;border-radius:14px;
   box-shadow:0 6px 24px rgba(0,0,0,.6);text-align:center;opacity:0;pointer-events:none;transition:opacity .15s;z-index:50}
@@ -184,6 +224,9 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
   .notes{grid-template-columns:repeat(6,minmax(0,1fr))}
   .list.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+@media (min-width:900px),(orientation:landscape) and (max-height:520px){
+  #add-wrap{max-width:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;align-items:start}
+}
 /* duas colunas independentes: partes à esquerda, play/tom/pad à direita */
 @media (min-width:900px),(orientation:landscape) and (max-height:520px){
   #view-play{overflow:hidden}
@@ -215,7 +258,7 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
   .title{font-size:24px;margin-bottom:8px}
   #toast{bottom:16px}
 }
-@media (prefers-reduced-motion:reduce){.part.pend{animation:none;box-shadow:0 0 0 4px var(--amb)}}
+@media (prefers-reduced-motion:reduce){.part.pend{animation:none;box-shadow:0 0 0 4px var(--amb)}.jb.ind i{animation:none;width:100%;opacity:.5}}
 </style>
 </head>
 <body>
@@ -297,12 +340,39 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
 
       <div class="view" id="view-scenes" hidden><div class="lists" id="scenes-box"></div></div>
       <div class="view" id="view-songs" hidden><div class="lists" id="songs-box"></div></div>
+      <div class="view" id="view-add" hidden>
+        <div id="add-wrap">
+          <div class="addA">
+            <div class="card">
+              <div class="sec-title">Link do YouTube</div>
+              <input class="inp" id="link-in" type="url" inputmode="url" enterkeyhint="go" placeholder="Cole o link aqui" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Link do YouTube">
+              <button type="button" class="bigbtn" id="link-go">Adicionar</button>
+              <div class="fmsg" id="link-msg" role="status" aria-live="polite"></div>
+            </div>
+            <div class="card">
+              <div class="sec-title">Arquivo do celular</div>
+              <button type="button" class="bigbtn" id="file-pick">Escolher arquivo</button>
+              <input class="vh" id="file-in" type="file" multiple accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus" tabindex="-1" aria-hidden="true">
+              <div class="jlist" id="up-list" style="margin-top:12px"></div>
+              <div class="fnote">Prefira mp3 ou m4a: enviam mais rápido. Mantenha a tela acesa durante o envio. Arquivos do Spotify e do Apple Music não podem ser enviados.</div>
+            </div>
+          </div>
+          <div class="addB">
+            <div class="card">
+              <div class="sec-title">Em andamento</div>
+              <div class="jempty" id="jobs-empty">Nada sendo adicionado agora.</div>
+              <div class="jlist" id="jobs-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="tabs" role="tablist">
       <button type="button" class="tab" role="tab" data-tab="play" aria-selected="true"><span class="ic">&#9654;</span>Tocar</button>
       <button type="button" class="tab" role="tab" data-tab="scenes" aria-selected="false"><span class="ic">&#9776;</span>Cenas</button>
       <button type="button" class="tab" role="tab" data-tab="songs" aria-selected="false"><span class="ic">&#9835;</span>Músicas</button>
+      <button type="button" class="tab" role="tab" data-tab="add" aria-selected="false"><span class="ic">&#65291;<span class="badge" id="badge" hidden>0</span></span>Adicionar</button>
     </div>
   </div>
   <div id="toast" role="status" aria-live="polite"></div>
@@ -341,6 +411,13 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
   var pinBusy = false;
   var lockUntil = 0;
   var lockTimer = null;
+  var jobs = [];          // jobs em andamento (SSE jobs / GET /api/jobs), já sem os limpos
+  var jobsRev = 0;
+  var jobEls = {};        // id -> cartão
+  var jobStage = {};      // id -> última etapa vista (para recarregar a biblioteca ao concluir)
+  var jobDismissed = {};  // id -> true (cartão limpo só nesta página)
+  var uploads = [];       // fila local de envios de arquivo
+  var linkBusy = false;
 
   function $(id) { return document.getElementById(id); }
   function h(tag, cls, text) {
@@ -426,7 +503,7 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
     catch (e) { scheduleReconnect(); return; }
     es = src;
     lastMsg = Date.now();
-    src.onopen = function () { lastMsg = Date.now(); reconnDelay = 1500; setConn(true); };
+    src.onopen = function () { lastMsg = Date.now(); reconnDelay = 1500; setConn(true); refreshJobs(); };
     src.addEventListener('state', function (ev) {
       lastMsg = Date.now();
       reconnDelay = 1500;
@@ -435,6 +512,14 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
       try { s = JSON.parse(ev.data); } catch (e) { s = null; }
       state = s;
       render();
+    });
+    src.addEventListener('jobs', function (ev) {
+      lastMsg = Date.now();
+      reconnDelay = 1500;
+      if (!connected) setConn(true);
+      var l = null;
+      try { l = JSON.parse(ev.data); } catch (e) { l = null; }
+      applyJobs(l);
     });
     src.addEventListener('ping', function () { lastMsg = Date.now(); if (!connected) setConn(true); });
     src.onerror = function () {
@@ -556,6 +641,7 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
   function logout(msg) {
     try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignora */ }
     token = null; state = null; library = null; libError = false; openedScene = null; partsSig = ''; listSig = '';
+    resetAdd();
     if (reconnTimer) { clearTimeout(reconnTimer); reconnTimer = null; }
     closeEs();
     setConn(true);
@@ -563,7 +649,7 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
   }
   function setTab(t) {
     tab = t;
-    var ids = ['play', 'scenes', 'songs'];
+    var ids = ['play', 'scenes', 'songs', 'add'];
     for (var i = 0; i < ids.length; i++) {
       $('view-' + ids[i]).hidden = ids[i] !== t;
     }
@@ -572,6 +658,7 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
       bs[j].setAttribute('aria-selected', bs[j].getAttribute('data-tab') === t ? 'true' : 'false');
     }
     if (t === 'scenes' || t === 'songs') loadLibrary();
+    if (t === 'add') refreshJobs();
     renderLists();
   }
 
@@ -938,6 +1025,366 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
     else if (tab === 'songs') renderSongs();
   }
 
+  /* ---------- adicionar: jobs ---------- */
+  var STAGE_END = { done: 1, error: 1 };
+  function setScale(el, v) {
+    el.style.webkitTransform = 'scaleX(' + v + ')';
+    el.style.transform = 'scaleX(' + v + ')';
+  }
+  function stageText(j) {
+    var p = Math.max(0, Math.min(100, Math.round(Number(j.pct) || 0)));
+    switch (j.stage) {
+      case 'queued': return 'Na fila';
+      case 'metadata': return 'Lendo informações';
+      case 'download': return p > 0 ? 'Baixando ' + p + '%' : 'Baixando';
+      case 'convert': return 'Convertendo';
+      case 'separate': return p > 0 ? 'Separando ' + p + '%' : 'Separando';
+      case 'finalize': return 'Finalizando';
+      case 'done': return 'Pronta';
+      case 'error': return j.error && j.error !== 'Cancelado' ? 'Erro: ' + j.error : (j.error ? 'Cancelado' : 'Erro');
+      default: return String(j.stage || '');
+    }
+  }
+  // cartão comum a jobs e envios: título, texto de etapa, barra e botões à direita
+  function mkCard() {
+    var c = {};
+    c.el = h('div', 'jc');
+    var l = h('div', 'jl');
+    c.t = h('div', 'jt');
+    c.s = h('div', 'js');
+    c.bar = h('div', 'jb');
+    c.fill = h('i');
+    c.bar.appendChild(c.fill);
+    l.appendChild(c.t); l.appendChild(c.s); l.appendChild(c.bar);
+    c.ja = h('div', 'ja');
+    c.el.appendChild(l); c.el.appendChild(c.ja);
+    return c;
+  }
+  function mkBtn(c, text, cls, fn) {
+    var b = h('button', 'sbtn' + (cls ? ' ' + cls : ''), text);
+    b.type = 'button';
+    b.addEventListener('click', fn);
+    c.ja.appendChild(b);
+    return b;
+  }
+  function setText(el, text) { if (el.textContent !== text) el.textContent = text; }
+  function setBar(c, kind, pct) {
+    // kind: 'err' | 'ind' | ''; pct 0..100
+    var cls = 'jb' + (kind ? ' ' + kind : '');
+    if (c.bar.className !== cls) c.bar.className = cls;
+    if (kind !== 'ind') setScale(c.fill, Math.max(0, Math.min(1, pct / 100)));
+  }
+
+  function buildJobCard(id) {
+    var c = mkCard();
+    c.id = id;
+    c.cancelling = false;
+    c.cancelTimer = null;
+    c.bCancel = mkBtn(c, 'Cancelar', 'dng', function () { cancelJob(c); });
+    c.bOpen = mkBtn(c, 'Abrir', 'pri', function () {
+      guarded('song:' + id, c.bOpen, 'Tocando agora. Toque de novo para trocar de música.', function () {
+        openCmd({ type: 'openSong', id: id }, c.bOpen);
+      });
+    });
+    c.bClear = mkBtn(c, 'Limpar', '', function () {
+      jobDismissed[id] = true;
+      var keep = [];
+      for (var i = 0; i < jobs.length; i++) if (jobs[i].id !== id) keep.push(jobs[i]);
+      jobs = keep;
+      renderJobs();
+    });
+    return c;
+  }
+  function resetCancel(c) {
+    if (c.cancelTimer) { clearTimeout(c.cancelTimer); c.cancelTimer = null; }
+    c.cancelling = false;
+    c.bCancel.disabled = false;
+    c.bCancel.textContent = 'Cancelar';
+  }
+  function cancelJob(c) {
+    if (c.cancelling) return;
+    vibrate();
+    c.cancelling = true;
+    c.bCancel.disabled = true;
+    c.bCancel.textContent = 'Cancelando…';
+    call('POST', '/api/job-cancel', { id: c.id }).then(function (r) {
+      if (r.status === 401) return;
+      if (r.ok) { c.cancelTimer = setTimeout(function () { resetCancel(c); }, 5000); return; }
+      resetCancel(c);
+      if (r.status === 404) { toast('Essa música já terminou.'); refreshJobs(); }
+      else if (r.status === 429) toast('Muitos toques seguidos. Espere um instante.', true);
+      else toast('Erro ' + r.status + ' no PC.', true);
+    }, function () {
+      resetCancel(c);
+      toast('Sem conexão com o PC', true);
+    });
+  }
+  function updateJobCard(c, j) {
+    var active = !STAGE_END[j.stage];
+    setText(c.t, String(j.title || j.id));
+    setText(c.s, stageText(j));
+    var sc = 'js' + (j.stage === 'done' ? ' ok' : j.stage === 'error' ? ' err' : '');
+    if (c.s.className !== sc) c.s.className = sc;
+    c.bCancel.hidden = !active;
+    c.bOpen.hidden = j.stage !== 'done';
+    c.bClear.hidden = active;
+    if (!active && c.cancelling) resetCancel(c);
+    var p = Math.max(0, Math.min(100, Number(j.pct) || 0));
+    if (j.stage === 'error') setBar(c, 'err', 100);
+    else if (j.stage === 'done') setBar(c, '', 100);
+    else if (p > 0) setBar(c, '', p);
+    else if (j.stage === 'queued') setBar(c, '', 0);
+    else setBar(c, 'ind', 0);
+  }
+  function renderJobs() {
+    var box = $('jobs-list');
+    var seen = {};
+    var active = 0;
+    var i;
+    for (i = 0; i < jobs.length; i++) {
+      var j = jobs[i];
+      seen[j.id] = true;
+      if (!STAGE_END[j.stage]) active++;
+      var c = jobEls[j.id];
+      if (!c) { c = buildJobCard(j.id); jobEls[j.id] = c; }
+      updateJobCard(c, j);
+      // muda a posição só se preciso: não recria o cartão (toque em andamento não se perde)
+      if (box.children[i] !== c.el) box.insertBefore(c.el, box.children[i] || null);
+    }
+    for (var id in jobEls) {
+      if (Object.prototype.hasOwnProperty.call(jobEls, id) && !seen[id]) {
+        if (jobEls[id].cancelTimer) clearTimeout(jobEls[id].cancelTimer);
+        if (jobEls[id].el.parentNode) jobEls[id].el.parentNode.removeChild(jobEls[id].el);
+        delete jobEls[id];
+      }
+    }
+    $('jobs-empty').hidden = jobs.length > 0;
+    var bd = $('badge');
+    if (active > 0) { setText(bd, active > 99 ? '99+' : String(active)); bd.hidden = false; }
+    else bd.hidden = true;
+  }
+  function applyJobs(list) {
+    if (!Array.isArray(list)) return;
+    jobsRev++;
+    var out = [];
+    var present = {};
+    var needLib = false;
+    for (var i = 0; i < list.length; i++) {
+      var j = list[i];
+      if (!j || typeof j !== 'object' || typeof j.id !== 'string') continue;
+      present[j.id] = true;
+      if (jobDismissed[j.id] && !STAGE_END[j.stage]) delete jobDismissed[j.id]; // voltou a rodar
+      if (jobDismissed[j.id]) continue;
+      if (j.stage === 'done' && jobStage[j.id] !== 'done') needLib = true;
+      jobStage[j.id] = j.stage;
+      out.push(j);
+    }
+    for (var k in jobDismissed) if (Object.prototype.hasOwnProperty.call(jobDismissed, k) && !present[k]) delete jobDismissed[k];
+    for (var m in jobStage) if (Object.prototype.hasOwnProperty.call(jobStage, m) && !present[m]) delete jobStage[m];
+    jobs = out;
+    renderJobs();
+    if (needLib) loadLibrary();
+  }
+  function refreshJobs() {
+    if (!token) return Promise.resolve();
+    var rev = jobsRev;
+    return call('GET', '/api/jobs').then(function (r) {
+      // evento SSE chegou enquanto o GET voltava: o SSE é mais novo
+      if (r.ok && Array.isArray(r.json) && rev === jobsRev) applyJobs(r.json);
+    }, function () { /* sem rede: o SSE reconecta */ });
+  }
+
+  /* ---------- adicionar: link ---------- */
+  function setLinkMsg(text, cls, openId) {
+    var e = $('link-msg');
+    clear(e);
+    e.className = 'fmsg' + (cls ? ' ' + cls : '');
+    if (text) e.appendChild(document.createTextNode(text));
+    if (openId) {
+      var b = h('button', 'sbtn pri', 'Abrir');
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        guarded('song:' + openId, b, 'Tocando agora. Toque de novo para trocar de música.', function () {
+          openCmd({ type: 'openSong', id: openId }, b);
+        });
+      });
+      e.appendChild(b);
+    }
+  }
+  function sendLink() {
+    if (linkBusy) return;
+    var inp = $('link-in');
+    var url = inp.value.replace(/^\s+|\s+$/g, '');
+    if (!url) { setLinkMsg('Cole um link do YouTube.', 'err'); return; }
+    linkBusy = true;
+    $('link-go').disabled = true;
+    vibrate();
+    inp.blur();
+    inp.value = '';
+    setLinkMsg('Enviando…', 'info');
+    function restore() { if (!inp.value) inp.value = url; }
+    call('POST', '/api/add-link', { url: url }).then(function (r) {
+      linkBusy = false;
+      $('link-go').disabled = false;
+      if (r.status === 401) return;
+      if (r.status === 202 || (r.status === 200 && !(r.json && r.json.exists))) {
+        setLinkMsg('Enviado ao PC. Acompanhe abaixo.', 'ok');
+        refreshJobs();
+      } else if (r.status === 200) {
+        setLinkMsg('Essa música já está na biblioteca.', 'info', r.json.id ? String(r.json.id) : null);
+      } else if (r.status === 400) {
+        restore();
+        setLinkMsg('Link inválido: cole um link do YouTube.', 'err');
+      } else if (r.status === 409) {
+        setLinkMsg('Essa música já está sendo adicionada.', 'info');
+        refreshJobs();
+      } else if (r.status === 429) {
+        restore();
+        setLinkMsg('Muitos toques seguidos. Espere um instante.', 'err');
+      } else {
+        restore();
+        setLinkMsg('Erro ' + r.status + ' no PC.', 'err');
+      }
+    }, function () {
+      linkBusy = false;
+      $('link-go').disabled = false;
+      restore();
+      setLinkMsg('Sem conexão com o PC.', 'err');
+    });
+  }
+
+  /* ---------- adicionar: arquivos do celular ---------- */
+  var AUDIO_EXTS = ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wma', 'aiff', 'aif', 'alac', 'webm']; // = AUDIO_EXTENSIONS do PC
+  var MAX_UPLOAD = 500 * 1024 * 1024;
+
+  function updateUpload(u) {
+    var st = u.state;
+    var c = u.c;
+    setText(c.t, u.file.name);
+    var txt;
+    if (st === 'wait') txt = 'Na fila de envio';
+    else if (st === 'sending') txt = u.pct >= 100 ? 'Gravando no PC…' : 'Enviando ' + u.pct + '%';
+    else if (st === 'done') txt = 'Enviado. O PC vai separar.';
+    else txt = u.msg;
+    setText(c.s, txt);
+    var sc = 'js' + (st === 'done' ? ' ok' : st === 'error' ? ' err' : '');
+    if (c.s.className !== sc) c.s.className = sc;
+    c.bCancel.hidden = !(st === 'wait' || st === 'sending');
+    c.bRetry.hidden = !(st === 'error' && u.retry);
+    c.bClear.hidden = !(st === 'error' || st === 'done');
+    if (st === 'error') setBar(c, 'err', 100);
+    else setBar(c, '', st === 'done' ? 100 : u.pct);
+  }
+  function upFail(u, msg, retry) {
+    u.state = 'error'; u.msg = msg; u.retry = !!retry; u.xhr = null;
+    updateUpload(u);
+  }
+  function removeUpload(u) {
+    u.removed = true;
+    var x = u.xhr;
+    u.xhr = null;
+    if (x) { try { x.abort(); } catch (e) { /* ignora */ } }
+    if (u.c.el.parentNode) u.c.el.parentNode.removeChild(u.c.el);
+    for (var i = 0; i < uploads.length; i++) if (uploads[i] === u) { uploads.splice(i, 1); break; }
+    pumpUploads();
+  }
+  function pumpUploads() {
+    var next = null;
+    for (var i = 0; i < uploads.length; i++) {
+      if (uploads[i].state === 'sending') return;
+      if (!next && uploads[i].state === 'wait') next = uploads[i];
+    }
+    if (next) sendUpload(next);
+  }
+  function sendUpload(u) {
+    var xhr = new XMLHttpRequest();
+    u.xhr = xhr; u.state = 'sending'; u.pct = 0; u.userAbort = false;
+    updateUpload(u);
+    requestWake();
+    xhr.open('POST', '/api/upload?name=' + encodeURIComponent(u.file.name));
+    xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.upload.onprogress = function (e) {
+      if (u.removed || !e.lengthComputable || !e.total) return;
+      var p = Math.min(100, Math.floor(e.loaded * 100 / e.total));
+      if (p !== u.pct) { u.pct = p; updateUpload(u); }
+    };
+    xhr.onload = function () {
+      if (u.removed) return;
+      var sx = xhr.status;
+      u.xhr = null;
+      if (sx === 202 || sx === 200) {
+        u.state = 'done'; u.pct = 100;
+        updateUpload(u);
+        setTimeout(function () { if (!u.removed && u.state === 'done') removeUpload(u); }, 8000);
+        refreshJobs();
+      } else if (sx === 401) {
+        logout('Sessão expirada. Digite o PIN de novo.');
+        return;
+      } else if (sx === 413) upFail(u, 'Arquivo grande demais (máximo 500 MB)', false);
+      else if (sx === 415) upFail(u, 'Formato não aceito', false);
+      else if (sx === 429) upFail(u, 'Muitos envios ao mesmo tempo, espere', true);
+      else if (sx === 400) upFail(u, 'O PC recusou o nome do arquivo', false);
+      else upFail(u, 'Erro ' + sx + ' no PC', true);
+      pumpUploads();
+    };
+    xhr.onerror = function () {
+      if (u.removed) return;
+      upFail(u, 'Envio interrompido', true);
+      pumpUploads();
+    };
+    xhr.onabort = function () {
+      if (u.removed) return;
+      upFail(u, u.userAbort ? 'Envio cancelado' : 'Envio interrompido', true);
+      pumpUploads();
+    };
+    xhr.send(u.file);
+  }
+  function buildUpload(file) {
+    var u = { file: file, state: 'wait', pct: 0, msg: '', retry: false, xhr: null, removed: false, userAbort: false };
+    var c = mkCard();
+    u.c = c;
+    c.bCancel = mkBtn(c, 'Cancelar', 'dng', function () {
+      if (u.state === 'sending' && u.xhr) { u.userAbort = true; u.xhr.abort(); }
+      else removeUpload(u);
+    });
+    c.bRetry = mkBtn(c, 'Tentar de novo', 'pri', function () {
+      u.state = 'wait'; u.pct = 0; u.retry = false;
+      updateUpload(u);
+      pumpUploads();
+    });
+    c.bClear = mkBtn(c, 'Limpar', '', function () { removeUpload(u); });
+    var name = String(file.name || '');
+    var dot = name.lastIndexOf('.');
+    var ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
+    if (AUDIO_EXTS.indexOf(ext) === -1) upFail(u, 'Formato não aceito', false);
+    else if (file.size > MAX_UPLOAD) upFail(u, 'Arquivo grande demais (máximo 500 MB)', false);
+    else if (file.size === 0) upFail(u, 'Arquivo vazio', false);
+    else updateUpload(u);
+    return u;
+  }
+  function addFiles(files) {
+    var list = $('up-list');
+    for (var i = 0; i < files.length; i++) {
+      var u = buildUpload(files[i]);
+      uploads.push(u);
+      list.appendChild(u.c.el);
+    }
+    pumpUploads();
+  }
+
+  // logout / sessão expirada: para envios e zera a aba
+  function resetAdd() {
+    var all = uploads.slice();
+    for (var i = 0; i < all.length; i++) removeUpload(all[i]);
+    uploads = [];
+    jobs = []; jobDismissed = {}; jobStage = {}; linkBusy = false;
+    renderJobs();
+    setLinkMsg('', '');
+    $('link-in').value = '';
+    $('link-go').disabled = false;
+  }
+
   /* ---------- ligações ---------- */
   function bind(id, fn) { $(id).addEventListener('click', fn); }
   function init() {
@@ -983,6 +1430,17 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
     });
     bind('next', function () {
       guarded('next', $('next'), 'Tocando agora. Toque de novo para ir à próxima música.', function () { send({ type: 'nextSong' }, $('next')); });
+    });
+    bind('link-go', sendLink);
+    $('link-in').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); sendLink(); } });
+    $('link-in').addEventListener('input', function () { if ($('link-msg').firstChild) setLinkMsg('', ''); });
+    bind('file-pick', function () { $('file-in').click(); });
+    $('file-in').addEventListener('change', function () {
+      var fl = this.files;
+      var arr = [];
+      for (var q = 0; q < fl.length; q++) arr.push(fl[q]);
+      this.value = ''; // permite escolher o mesmo arquivo de novo
+      if (arr.length) addFiles(arr);
     });
     bind('go-songs', function () { setTab('songs'); });
     bind('go-scenes', function () { setTab('scenes'); });
