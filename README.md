@@ -1,131 +1,138 @@
-> **Fork pessoal** de [danielravina/stemkit](https://github.com/danielravina/stemkit) (licença MIT, aviso de copyright mantido em `LICENSE`).
-> Uso próprio, sem distribuição. Diferenças em relação ao original: sem atualização automática e sem telemetria.
-> O original está configurado como remote `upstream` para trazer correções dele quando eu quiser.
-
 # Stem-Machine
 
-Split any YouTube song into isolated stems — **vocals, drums, bass, guitar, piano** and more — right on your machine.
+**Stem-Machine 0.10.2** é uma mini-DAW local para ensaio e palco. Ele baixa uma faixa do YouTube — ou recebe um arquivo de áudio —, separa os instrumentos em stems e permite tocar, estudar e controlar a música pelo PC ou pelo celular.
 
-Search YouTube or paste a link, pick the instruments you want, and play the result like a mini DAW: the video on one side, every stem on its own fader, all perfectly in sync. Karaoke, acapellas and instrumentals are one click away.
+O processamento acontece no computador. Não há conta, chave de API, telemetria ou atualização automática neste fork. A primeira preparação requer internet para baixar o runtime Python e os modelos; depois, trabalhar com arquivos locais funciona sem conexão.
 
-Everything runs locally — no accounts, no API keys. Your songs, searches and audio never leave your machine. The app sends a single tiny anonymous ping per install (a random install id + version/OS) so I can count how many people use it — see [Privacy](#privacy) for details.
+> Fork pessoal de [danielravina/stemkit](https://github.com/danielravina/stemkit), sob licença MIT. O aviso de copyright original está em [LICENSE](LICENSE). Este fork não recebe atualizações automáticas do projeto original.
 
-![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-black) ![local](https://img.shields.io/badge/100%25-local-emerald)
+![Plataformas](https://img.shields.io/badge/plataformas-Windows%20%7C%20macOS%20%7C%20Linux-18181b)
+![Local](https://img.shields.io/badge/processamento-local-34d399)
 
 <p align="center">
-  <img src="docs/stemkit.png" alt="StemKit splitting Queen's Bohemian Rhapsody into six stems — video player, presets and color-coded waveform lanes" width="100%" />
+  <img src="docs/stemkit.png" alt="Stem-Machine: stems em faixas separadas, formas de onda e controles de mixagem" width="100%">
 </p>
 
-## Features
+## O que ele faz
 
-- Built-in YouTube search, or paste a link
-- Choose your instruments individually; the right separation engine is picked for you
-- Tight audio/video sync with instant, artifact-free seeking
-- One-click presets: **All · Karaoke · Acapella · Drums + Bass**
-- Per-stem mute/solo/volume, waveforms with click-to-seek
-- Parallel background splitting with live progress
-- Export any stem (or all) as WAV
-- Fully offline after setup — separation runs on Mac (MPS), NVIDIA GPUs (CUDA), AMD GPUs on Linux (ROCm, experimental) or CPU; ffmpeg included
+- Busca no YouTube, aceita links ou importa arquivos de áudio locais.
+- Separa voz, bateria, baixo e outros; o modelo estendido também oferece piano e guitarra quando disponível.
+- Toca stems sincronizados com volume, mute, solo, pan e EQ por faixa.
+- Exporta uma faixa ou todas em WAV; AAC/M4A é opcional nas configurações.
+- Detecta batidas, BPM, seções e acordes; seções e acordes podem ser corrigidos manualmente.
+- Tem click sincronizado, loop A–B, mudança de tom e velocidade em tempo real e guia de voz das seções.
+- Mantém um pad contínuo, sintetizado ou importado, com tom, volume, brilho, pan e transição configuráveis.
+- Oferece saída **PAN L/R**: metrônomo e guia no canal esquerdo para o retorno; música em mono no direito para o PA.
+- Permite criar cenas/setlists, reorganizar músicas, pular diretamente para uma faixa e preparar a próxima com tom e BPM visíveis.
+- Aceita controladores MIDI com modo “Aprender”.
+- Inclui controle remoto na rede local pelo celular: transporte, partes, tom, BPM, click, pad, PAN L/R, setlist, biblioteca e adicionar músicas por link ou arquivo.
+- Mantém metrônomo avulso, pad e PAN L/R acessíveis no PC e no celular sem uma música aberta. O metrônomo tem BPM manual, TAP tempo e pan próprio; o pad também tem pan próprio. Em PAN L/R, a separação de canais tem prioridade sobre esses pans individuais.
 
-## Download
+## Requisitos
 
-Grab installers from [Releases](https://github.com/danvelope/stemkit/releases):
-- **macOS**: `StemKit-x.y.z-mac-arm64.dmg` (Apple Silicon) or `StemKit-x.y.z-mac-x64.dmg` (Intel)
-- **Windows**: `StemKit-Setup-x.y.z.exe` (installer) or portable `.zip`
-- **Linux** (x64): `StemKit-x.y.z-linux-x86_64.AppImage` (portable, self-updating) or `StemKit-x.y.z-linux-amd64.deb`
+- **Windows:** Windows 10/11 64-bit.
+- **macOS:** macOS 12 ou mais recente, Apple Silicon ou Intel 64-bit.
+- **Linux:** distribuição 64-bit atual, como Ubuntu 22.04+.
+- Espaço e internet na primeira preparação: aproximadamente **2 GB ou mais**, conforme os modelos escolhidos.
+- GPU é opcional. NVIDIA é suportada no Windows/Linux; AMD/ROCm é experimental no Linux; no macOS o app usa MPS quando disponível ou CPU.
 
-First launch creates a private Python environment and downloads the separation engine (~2 GB) — one time. ffmpeg is bundled — nothing else to install.
+Não é necessário instalar Python, ffmpeg ou Node.js para usar uma versão instalada: o app prepara Python e modelos e já traz ffmpeg.
 
-Optional quality upgrades live behind a gear icon in the app (Settings), each with its own one-time download:
-- **Studio-quality vocals** (Mel-Band Roformer): +913 MB — runs on GPU or CPU (CPU is slower)
-- **Fine-tuned demucs** (htdemucs_ft): +~320 MB, up to 4× slower
-- **Refinement passes**: 2 shifts instead of 1, up to 3× slower
+## Instalar e usar
 
-> **macOS first launch**: builds are signed with a Developer ID but not notarized, so macOS may say it "cannot verify the developer". One-time fix: **System Settings → Privacy & Security → Open Anyway** (or `xattr -cr /Applications/StemKit.app`).
->
-> **Windows**: SmartScreen may warn on first run — "More info → Run anyway".
+Os instaladores ficam em `release/` quando a build é feita localmente, ou na release publicada.
 
-## Requirements
+### Windows
 
-- **macOS 12+** (Apple Silicon or Intel x86_64) or **Windows 10/11** (x64) or **Linux x64** (Ubuntu 22.04+ or equivalent; NVIDIA driver for GPU splits, AMD via ROCm on Linux — experimental)
-- No manual installs: if no Python 3.9+ is detected, StemKit downloads a private runtime (python-build-standalone) during first-launch setup
-- Node.js 24+ only for building from source
+Execute `Stem-Machine-<versão>-Setup.exe`. Caso o SmartScreen apareça em uma build não assinada, use **Mais informações → Executar assim mesmo** somente se você confia na origem do instalador.
 
-> **Intel Mac**: PyTorch publishes no macOS x86_64 wheels past 2.2.2, so first-launch setup installs that build instead of the 2.5.1 used everywhere else. MPS is still available on that build when the machine has a Metal-capable GPU (verified on an Intel Mac with a discrete GPU); integrated-only Macs fall back to CPU.
+### macOS
 
-## Develop
+Abra o `.dmg`, arraste o app para Aplicativos e execute-o. Em builds não notarizadas, o macOS pode exigir **Ajustes do Sistema → Privacidade e Segurança → Abrir assim mesmo**.
+
+### Linux
+
+```bash
+# pacote do sistema (recomendado)
+sudo apt install ./Stem-Machine-<versão>-linux-amd64.deb
+
+# ou pacote portátil
+chmod +x Stem-Machine-<versão>-linux-x86_64.AppImage
+./Stem-Machine-<versão>-linux-x86_64.AppImage
+```
+
+Veja [docs/INSTALL.md](docs/INSTALL.md) para instalação sem `sudo`, atualização e validação.
+
+Depois de instalar, abra o app e clique em **Get started**. A primeira preparação baixa os componentes necessários; mantenha o app aberto até ela terminar.
+
+## Uso rápido
+
+1. Na biblioteca, clique em **Adicionar** e pesquise/cole um link do YouTube, ou escolha um arquivo de áudio.
+2. Aguarde download, conversão e separação. A música entrará na biblioteca.
+3. Abra a música para controlar stems, click, tom, BPM, seções, acordes, loop e exportação.
+4. Use **Setlist** para criar uma cena, ordenar as músicas e entrar no modo ao vivo.
+5. Use os controles de **Metrônomo**, **Pad** e **PAN L/R** no cabeçalho; eles também funcionam sem música aberta.
+
+### Controle pelo celular
+
+1. No PC, abra **Celular** na biblioteca e ative o controle.
+2. Abra no telefone um dos endereços mostrados ou escaneie o QR code.
+3. Digite o PIN de seis dígitos.
+
+PC e celular devem estar na mesma rede local. A página remota usa HTTP local e um PIN; não a exponha em Wi‑Fi público. Pelo celular também é possível enviar arquivos de áudio de até **500 MB** ou colar links do YouTube; o PC faz o processamento.
+
+## Dados, privacidade e limites
+
+- Biblioteca, stems, mixagens, pads, setlists, configurações e modelos ficam na pasta de dados do app no computador.
+- O áudio não é enviado a um servidor do Stem-Machine. O download de um link do YouTube e os downloads iniciais de runtime/modelos naturalmente usam a internet.
+- Não há telemetria nem atualização automática neste fork. Atualize instalando uma build nova.
+- Baixar conteúdo do YouTube pode contrariar os termos da plataforma. Use somente conteúdo para o qual você tenha permissão.
+- Arquivos protegidos por DRM, como downloads de streaming de Spotify ou Apple Music, não podem ser importados.
+
+## Desenvolver a partir do código
+
+Use Node.js **24 ou superior**.
 
 ```bash
 npm install
 npm run dev
+npm run typecheck
+npm run build
 ```
 
-Wrong Node version? Scripts auto-relaunch with a suitable one (nvm / nvm-windows).
-
-## Build & release
+Os scripts escolhem automaticamente uma instalação Node 24+ do `nvm`, quando existir. No Linux/macOS, `dev` ou um comando de pacote busca o ffmpeg necessário. Para baixar manualmente:
 
 ```bash
-bash scripts/fetch-ffmpeg.sh        # mac (compiles arm64 + x86_64 ffmpeg + libsoxr, needs cmake) / linux (one time)
-powershell scripts/fetch-ffmpeg.ps1 # windows (one time)
-
-npm run dist        # mac dmg -> release/
-npm run dist:win    # windows nsis+zip -> release/
-npm run dist:linux  # linux AppImage+deb (x64) -> release/
-npm run dist:all    # both (on the matching OS)
+bash scripts/fetch-ffmpeg.sh        # macOS ou Linux
+powershell scripts/fetch-ffmpeg.ps1 # Windows
 ```
 
-> **Linux**: building the `.deb` needs `dpkg` + `fakeroot` on the host; running the `.AppImage` needs FUSE. In-app self-update works on the AppImage — `.deb` installs update by re-downloading.
+## Gerar instaladores
 
-Releases are built by GitHub Actions:
-- push a tag `v*` → binaries attach to a draft GitHub Release
-- `workflow_dispatch` ("Run workflow") → on-demand artifacts on the run page
+Gere os pacotes no sistema operacional de destino:
 
-macOS builds are Developer-ID-signed when the certificate is available — see **Signing in CI** below for the one-time setup, plus optional notarization.
-
-### Signing in CI (one-time setup)
-
-Local builds sign with your keychain cert automatically. CI runners have empty keychains, so hand them the certificate via repo **secrets**:
-
-1. Keychain Access → My Certificates → right-click `Developer ID Application: ...` → Export → `.p12` (set an export password)
-2. Base64 it and add these repo secrets:
-   - `CSC_MAC_P12` — the base64 string: `base64 -i developer-id.p12 | pbcopy`
-   - `CSC_MAC_PASSWORD` — the export password from step 1
-3. Optional (full notarization, zero Gatekeeper prompts): add `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` **and** set repo variable `ENABLE_NOTARIZATION` to `true` (Settings → Secrets and variables → Actions → Variables). Requires an **active** Apple Developer membership — Apple's notary service rejects expired accounts.
-
-Without these secrets CI falls back to ad-hoc signing (app runs, but Gatekeeper complains on download).
-
-## How it works
-
-```
-YouTube URL ──► yt-dlp (+JS runtime) ──► bundled ffmpeg ──► mel-band roformer (vocals) ─┐
-                                        │                                               ├─► stems/*.wav
-                                        └─────────────► demucs htdemucs ────────────────┘
-                                             (drums/bass/other, shift-averaged)
-
-Electron renderer ◄──── IPC events ─────┘
-video iframe (muted) + Web Audio stem playback · master clock = the audio itself
+```bash
+npm run dist        # macOS: DMG e ZIP
+npm run dist:win    # Windows: instalador NSIS e ZIP
+npm run dist:linux  # Linux: AppImage e DEB
 ```
 
-## Notes
+Os artefatos saem em `release/`. Antes de encerrar uma alteração, o fluxo do projeto é: rodar `npm run typecheck`, gerar o instalador e instalar/testar a build recém-gerada. Consulte [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) e [docs/INSTALL.md](docs/INSTALL.md).
 
-- Downloading audio from YouTube violates their ToS for public products — keep this personal.
-- yt-dlp breaks occasionally when YouTube changes things; the error dialog offers a one-click update (updates `yt-dlp` + the challenge solver together).
+## Estrutura do projeto
 
-## Privacy
-
-- **Never leaves your machine:** the videos you download, the songs you split, your library, your searches and your audio — none of it is uploaded anywhere. All separation runs locally.
-- **Anonymous install count:** the first time the app runs it sends one small POST to a Cloudflare Worker (`stemkit-stats.danielravina.workers.dev`) — once per install, ever. It contains a **random install id** (generated locally, stored in the app's settings folder), the app version, OS and architecture. No IP-address-based profiles are built, no cookies, no identifiers tied to you, no analytics SDKs. If the first attempt fails (e.g. you're offline), it simply retries on a later launch.
-- **What it's for:** counting installs and active usage (the same stats you'd get from GitHub release downloads, minus auto-update noise). The counter code is in [`telemetry-worker/`](telemetry-worker) — inspectable like the rest of the app.
-- **Fully offline builds:** if you'd rather send nothing, build from source and remove `src/main/telemetry.ts` (or block the worker domain in your firewall) — everything else works identically offline.
-
-## Layout
-
+```text
+src/main/       Processo principal Electron: pipeline, biblioteca, rede local e ambiente
+src/preload/    Ponte IPC entre Electron e interface
+src/renderer/   Interface React: biblioteca, player, setlist e controles
+src/shared/     Tipos e contratos compartilhados
+python/         Separação, batidas, seções e acordes
+scripts/        Empacotamento, ffmpeg e testes do controle remoto
+docs/           Instalação, desenvolvimento e roadmap
 ```
-src/main         Electron main process (pipeline, env bootstrap, library)
-src/preload      IPC bridge
-src/renderer     React UI (player, sync engine, waveforms)
-python/          separate.py (demucs) and roformer.py (neural vocals) with JSON progress output
-python/vendor/   patched model code — see python/vendor/README.md
-scripts/         node runner, ffmpeg fetchers
-build/           icon sources
-```
+
+## Estado do produto
+
+- [Roadmap](docs/ROADMAP.md) — funcionalidades concluídas, pendências e validações de campo.
+- [Histórico de versões](CHANGELOG.md) — mudanças por versão.
+- [Segurança](SECURITY.md) — escopo e como relatar um problema.
