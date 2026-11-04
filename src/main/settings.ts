@@ -23,6 +23,18 @@ function clamp01(v: unknown, fallback: number): number {
   return typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback
 }
 
+function clampPan(v: unknown, fallback: number): number {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(-1, v)) : fallback
+}
+
+function clampMetronomeVolume(v: unknown, fallback: number): number {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.min(2, Math.max(0, v)) : fallback
+}
+
+function clampBpm(v: unknown, fallback: number): number {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.round(Math.min(300, Math.max(30, v))) : fallback
+}
+
 export function saveSettings(patch: Partial<AppSettings>): AppSettings {
   const merged = { ...loadSettings(), ...patch }
   const next: AppSettings = {
@@ -36,8 +48,12 @@ export function saveSettings(patch: Partial<AppSettings>): AppSettings {
     padSource: typeof merged.padSource === 'string' && merged.padSource ? merged.padSource : 'synth',
     padKey: Number.isInteger(merged.padKey) ? (((merged.padKey % 12) + 12) % 12) : 0,
     padVolume: clamp01(merged.padVolume, DEFAULT_SETTINGS.padVolume),
+    padPan: clampPan(merged.padPan, DEFAULT_SETTINGS.padPan),
     padBrightness: clamp01(merged.padBrightness, DEFAULT_SETTINGS.padBrightness),
     padTransition: merged.padTransition === 'fast' ? 'fast' : 'slow',
+    metronomeBpm: clampBpm(merged.metronomeBpm, DEFAULT_SETTINGS.metronomeBpm),
+    metronomePan: clampPan(merged.metronomePan, DEFAULT_SETTINGS.metronomePan),
+    metronomeVolume: clampMetronomeVolume(merged.metronomeVolume, DEFAULT_SETTINGS.metronomeVolume),
     sectionSwitch: merged.sectionSwitch === 'now' ? 'now' : 'bar',
     sceneAutoAdvance: !!merged.sceneAutoAdvance,
     padBetween: !!merged.padBetween,

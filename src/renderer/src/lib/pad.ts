@@ -25,6 +25,7 @@ export interface PadState {
   key: number
   source: string // 'synth' ou id do pad importado
   volume: number
+  pan: number // -1 L, 0 centro, 1 R; saída L/R força R
   brightness: number
   transition: PadTransition
   samples: PadSample[]
@@ -223,6 +224,7 @@ class PadEngine {
     key: 0,
     source: 'synth',
     volume: 0.7,
+    pan: 0,
     brightness: 0.75,
     transition: 'slow',
     samples: [],
@@ -237,6 +239,7 @@ class PadEngine {
   private sampleBus: GainNode | null = null
   private filter: BiquadFilterNode | null = null
   private volume: GainNode | null = null
+  private panner: StereoPannerNode | null = null
   private normalOut: GainNode | null = null
   private splitOut: GainNode | null = null
   private split = false
@@ -267,6 +270,7 @@ class PadEngine {
         padSource: s.source,
         padKey: s.key,
         padVolume: s.volume,
+        padPan: s.pan,
         padBrightness: s.brightness,
         padTransition: s.transition
       })
@@ -283,6 +287,7 @@ class PadEngine {
       key: settings.padKey,
       source: settings.padSource,
       volume: settings.padVolume,
+      pan: settings.padPan,
       brightness: settings.padBrightness,
       transition: settings.padTransition
     })
@@ -305,6 +310,8 @@ class PadEngine {
     this.filter.frequency.value = brightnessHz(this.state.brightness)
     this.volume = ctx.createGain()
     this.volume.gain.value = this.state.volume
+    this.panner = ctx.createStereoPanner()
+    this.panner.pan.value = this.state.pan
     // o sintetizado passa pelo reverb (seco + molhado); o importado já vem pronto
     const reverb = ctx.createConvolver()
     reverb.buffer = reverbImpulse(ctx)
@@ -322,7 +329,8 @@ class PadEngine {
     // saída normal em estéreo; no modo L/R o pad vai em mono para o R, com a música
     this.normalOut = ctx.createGain()
     this.splitOut = ctx.createGain()
-    this.volume.connect(this.normalOut)
+    this.volume.connect(this.panner)
+    this.panner.connect(this.normalOut)
     const mono = ctx.createGain()
     mono.channelCount = 1
     mono.channelCountMode = 'explicit'
@@ -458,6 +466,12 @@ class PadEngine {
     if (this.ctx && this.volume) this.volume.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05)
   }
 
+  setPan(v: number): void {
+    v = Math.min(1, Math.max(-1, v))
+    this.set({ pan: v }, true)
+    if (this.ctx && this.panner) this.panner.pan.setTargetAtTime(v, this.ctx.currentTime, 0.05)
+  }
+
   setBrightness(b: number): void {
     this.set({ brightness: b }, true)
     if (this.ctx && this.filter) this.filter.frequency.setTargetAtTime(brightnessHz(b), this.ctx.currentTime, 0.08)
@@ -530,6 +544,10 @@ export const pad = new PadEngine()
 registerCommandHandler((c) => {
   if (c.type === 'padVolume') {
     pad.setVolume(Math.min(1, Math.max(0, c.value)))
+    return true
+  }
+  if (c.type === 'padPan') {
+    pad.setPan(c.value)
     return true
   }
   if (c.type !== 'pad') return false

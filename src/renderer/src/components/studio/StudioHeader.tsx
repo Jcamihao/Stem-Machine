@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { SongThumb } from '../../lib/thumbs'
 import { MetronomeIcon } from '../Icons'
 import { PadButton } from '../PadButton'
+import { MetronomeButton, OutputSplitButton } from '../QuickControls'
 import { BackIcon, SplitIcon, TuneIcon, MeterIcon, ExportIcon, MoreIcon, ChevronIcon } from './icons'
 
 export interface MenuItem {
@@ -120,6 +121,8 @@ interface Props {
   exportItems: MenuItem[]
   menuItems: MenuItem[]
   outputSplit?: boolean
+  clickOn: boolean
+  onToggleOutputSplit: () => void
   scene?: {
     name: string
     index: number
@@ -241,15 +244,9 @@ export function StudioHeader(p: Props): React.ReactElement {
         <div className={chip} title="Compasso">
           <MeterIcon className="w-[18px] h-[18px]" /> {p.beatsPerBar ? `${p.beatsPerBar}/4` : '—'}
         </div>
+        <MetronomeButton className={chip} />
         <PadButton className={chip} />
-        {p.outputSplit && (
-          <div
-            className="h-9 px-3 rounded-md bg-amber-300 text-black text-[12px] font-bold flex items-center"
-            title="Saída L/R ligada: click e guia no L, música no R (desliga no menu ⋮ ou nas Configurações)"
-          >
-            L/R
-          </div>
-        )}
+        <OutputSplitButton on={!!p.outputSplit} onToggle={p.onToggleOutputSplit} className="no-drag h-9 px-3 rounded-md bg-[#1e1e1e] text-[12px] font-bold text-white hover:bg-[#2a2a2a]" />
         <Dropdown items={p.exportItems} className="no-drag flex items-center gap-2 h-9 px-3.5 rounded-md border-2 border-white/90 text-[13px] font-semibold text-white hover:bg-white/10">
           <ExportIcon className="w-[18px] h-[18px]" /> Exportar
         </Dropdown>

@@ -19,6 +19,7 @@ export function PadButton({ className }: { className: string }): React.ReactElem
 
   const sample = s.samples.find((p) => p.id === s.source) ?? null
   const label = 'text-[12px] font-semibold text-white/55'
+  const panText = s.pan === 0 ? 'Centro' : s.pan < 0 ? `${Math.round(-s.pan * 100)}% L` : `${Math.round(s.pan * 100)}% R`
   const seg = (on: boolean): string =>
     `no-drag flex-1 h-8 rounded-md text-[12px] font-semibold ${on ? 'bg-white text-black' : 'bg-[#262626] text-white/75 hover:bg-[#333]'}`
 
@@ -159,7 +160,21 @@ export function PadButton({ className }: { className: string }): React.ReactElem
               onChange={(e) => pad.setBrightness(parseFloat(e.target.value))}
               className="no-drag accent-white"
             />
+            <span className={label}>Pan</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={-1}
+                max={1}
+                step={0.01}
+                value={s.pan}
+                onChange={(e) => pad.setPan(parseFloat(e.target.value))}
+                className="no-drag flex-1 accent-white"
+              />
+              <span className="w-12 text-right text-[11px] font-semibold text-white/55">{panText}</span>
+            </div>
           </div>
+          <p className="text-[10px] text-white/35 mt-2">PAN L/R ligado força o pad para R.</p>
         </div>
       )}
     </div>

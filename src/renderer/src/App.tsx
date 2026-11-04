@@ -13,6 +13,7 @@ import { Settings } from './components/Settings'
 import { About } from './components/About'
 import { LogoMark } from './components/Icons'
 import { pad } from './lib/pad'
+import { metronome } from './lib/metronome'
 import { registerCommandHandler } from './lib/commands'
 import { stepSong, type SceneSong } from './lib/scenes'
 import { ScenesPanel, type SongMeta } from './components/ScenesPanel'
@@ -112,8 +113,18 @@ export default function App(): React.ReactElement {
 
   // o pad vive fora do player: preferências e saída L/R vêm daqui
   useEffect(() => {
-    if (settings) pad.applySettings(settings)
+    if (settings) {
+      pad.applySettings(settings)
+      metronome.applySettings(settings)
+      remote.setApp({ outputSplit: settings.outputSplit })
+    }
   }, [settings])
+
+  // O metrônomo avulso só existe entre músicas. Ao escolher uma, o click do
+  // player (sincronizado às batidas detectadas) assume o controle.
+  useEffect(() => {
+    if (activeId) metronome.stop()
+  }, [activeId])
 
   // MIDI escuta em qualquer tela (o mapa vem das configurações)
   useEffect(() => {
@@ -275,6 +286,29 @@ export default function App(): React.ReactElement {
   useEffect(
     () =>
       registerCommandHandler((c) => {
+        if (c.type === 'outputSplit') {
+          const current = settingsRef.current
+          if (!current) return false
+          void window.stemkit.setSettings({ outputSplit: !current.outputSplit })
+          return true
+        }
+        // O metrônomo avulso é independente do click sincronizado da música.
+        if (c.type === 'metronomeToggle') {
+          metronome.toggle()
+          return true
+        }
+        if (c.type === 'metronomeBpm') {
+          metronome.setBpm(c.value, true)
+          return true
+        }
+        if (c.type === 'metronomeTap') {
+          metronome.tap()
+          return true
+        }
+        if (c.type === 'metronomePan') {
+          metronome.setPan(c.value)
+          return true
+        }
         if (c.type === 'nextSong') return stepSceneRef.current(1)
         if (c.type === 'prevSong') return stepSceneRef.current(-1)
         const { songs: list, scenes: allScenes, playScene: play } = openRef.current
@@ -299,15 +333,20 @@ export default function App(): React.ReactElement {
     []
   )
 
-  // celular: comandos entram por startRemote; o pad e a cena em andamento saem daqui
+  // celular: comandos entram por startRemote; pad, metrônomo e cena saem daqui
   useEffect(() => remote.startRemote(), [])
   useEffect(() => {
     const publishPad = (): void => {
-      const { playing, key, volume } = pad.getState()
-      remote.setApp({ pad: { playing, key, volume } })
+      const { playing, key, volume, pan } = pad.getState()
+      remote.setApp({ pad: { playing, key, volume, pan } })
     }
     publishPad()
     return pad.subscribe(publishPad)
+  }, [])
+  useEffect(() => {
+    const publishMetronome = (): void => remote.setApp({ metronome: metronome.getState() })
+    publishMetronome()
+    return metronome.subscribe(publishMetronome)
   }, [])
   const remoteScene = useMemo(() => {
     const scene = scenes.find((sc) => sc.id === activeScene?.id)
@@ -508,6 +547,10 @@ export default function App(): React.ReactElement {
         onOpenMidi={() => setMidiOpen(true)}
         onOpenRemote={() => setRemoteOpen(true)}
         onOpenSettings={openSettings}
+        outputSplit={!!settings?.outputSplit}
+        onToggleOutputSplit={() => {
+          if (settings) void window.stemkit.setSettings({ outputSplit: !settings.outputSplit })
+        }}
       />
     )
   }

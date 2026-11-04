@@ -4,6 +4,7 @@ import { isLocalId } from '../../../shared/local'
 import { SongThumb } from '../lib/thumbs'
 import { MoreIcon } from './studio/icons'
 import { PadButton } from './PadButton'
+import { MetronomeButton, OutputSplitButton } from './QuickControls'
 
 type SortKey = 'date' | 'title' | 'bpm' | 'duration'
 
@@ -34,6 +35,8 @@ interface Props {
   onOpenMidi: () => void
   onOpenRemote: () => void
   onOpenSettings: () => void
+  outputSplit: boolean
+  onToggleOutputSplit: () => void
 }
 
 function RowMenu({ song, onOpen, onDelete }: { song: Song; onOpen: () => void; onDelete: () => void }): React.ReactElement {
@@ -80,7 +83,7 @@ function RowMenu({ song, onOpen, onDelete }: { song: Song; onOpen: () => void; o
 
 /* biblioteca em tabela: título (capa, nome, origem), data, gênero, BPM, tom,
    duração. Tom vem dos acordes; gênero ainda não é detectado ("–") */
-export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd, onOpenScenes, onOpenMidi, onOpenRemote, onOpenSettings }: Props): React.ReactElement {
+export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd, onOpenScenes, onOpenMidi, onOpenRemote, onOpenSettings, outputSplit, onToggleOutputSplit }: Props): React.ReactElement {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean }>({ key: 'date', asc: false })
   const [meta, setMeta] = useState<Record<string, { bpm: number | null; key: string | null; keyShift: string | null }>>({})
@@ -174,7 +177,9 @@ export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd,
         <button onClick={onOpenRemote} title="Celular: controle o app pelo navegador do celular" className="no-drag h-8 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]">
           Celular
         </button>
+        <MetronomeButton className="no-drag flex items-center gap-2 h-8 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]" />
         <PadButton className="no-drag flex items-center gap-2 h-8 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]" />
+        <OutputSplitButton on={outputSplit} onToggle={onToggleOutputSplit} className="no-drag h-8 px-3 rounded-md bg-[#1e1e1e] text-[12px] font-bold text-white hover:bg-[#2a2a2a]" />
         <button onClick={onOpenSettings} title="Configurações" className="no-drag w-8 h-8 rounded-md bg-[#1e1e1e] text-white/80 hover:text-white flex items-center justify-center">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
             <circle cx="12" cy="12" r="3" />

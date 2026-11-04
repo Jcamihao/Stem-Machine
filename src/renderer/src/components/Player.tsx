@@ -20,6 +20,7 @@ import { ChordNow, ChordStrip } from './studio/ChordStrip'
 import { formatChord } from '../lib/chords'
 import { detectKey, keyName } from '../../../shared/key'
 import { pad } from '../lib/pad'
+import { metronome } from '../lib/metronome'
 import type { SceneView } from '../lib/scenes'
 import { SetlistDrawer } from './SetlistDrawer'
 import * as remote from '../lib/remote'
@@ -943,6 +944,10 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
   const remoteBpm = beats && beats.bpm > 0 ? Math.round(beats.bpm * clickFactor * speed) : null
   const remoteKey = musicKey ? keyName(musicKey, semitones) : null
   const remoteClickOn = !!beats && !mutes.has('click')
+  // Se o músico sair da faixa, o metrônomo avulso continua no último andamento usado.
+  useEffect(() => {
+    if (remoteBpm !== null) metronome.setBpm(remoteBpm)
+  }, [remoteBpm])
   useEffect(() => {
     remote.setPlayer({
       song: { id: song.videoId, title: song.title },
@@ -1041,6 +1046,8 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
         exportItems={exportItems}
         menuItems={menuItems}
         outputSplit={outputSplit}
+        clickOn={remoteClickOn}
+        onToggleOutputSplit={() => void window.stemkit.setSettings({ outputSplit: !outputSplit })}
         scene={
           scene && {
             name: scene.name,
