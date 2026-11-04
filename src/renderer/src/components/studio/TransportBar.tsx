@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fmtTime } from '../../lib/format'
-import { VolumeIcon, RewindIcon, ForwardIcon, PauseBarsIcon, PlayTriIcon, LoopIcon, LyricsIcon, ChordsIcon, SectionsIcon } from './icons'
+import { SmIcon } from '../SmIcon'
 
 interface Props {
   playing: boolean
@@ -35,20 +35,23 @@ export function TransportBar(p: Props): React.ReactElement {
   }, [p.playing])
   const pos = p.getPosition()
   const frac = p.duration > 0 ? Math.min(1, pos / p.duration) : 0
-  const icon = 'no-drag text-white/85 hover:text-white transition-colors'
-  const pill = 'no-drag flex items-center gap-2 px-4 h-9 rounded-md text-[13px] font-semibold'
+  const round = 'no-drag grid place-items-center rounded-full bg-chip border border-ln2 text-[#e6e6e8] hover:bg-btn transition-colors'
+  const pill = 'no-drag h-[34px] px-[11px] rounded-full text-[12px] font-bold border'
+  const on = 'bg-acc/[0.14] border-acc/55 text-acc3'
+  const off = 'bg-chip border-ln2 text-[#e6e6e8] hover:bg-btn'
+  const chordsOn = p.showChords && p.chordsAvailable
 
   return (
-    <div className="relative h-[84px] shrink-0 flex items-center justify-center">
-      {p.leftSlot && <div className="absolute left-6">{p.leftSlot}</div>}
+    <div className="relative h-[92px] shrink-0 border-t border-[#1d1d21] bg-rail grid grid-cols-[320px_1fr_320px] items-center px-[18px] gap-5">
+      <div className="min-w-0">{p.leftSlot}</div>
       <div className="flex flex-col items-center gap-2">
-        <div className="flex items-center gap-7">
+        <div className="flex items-center gap-2.5">
           <div className="relative">
-            <button onClick={() => setVolOpen((o) => !o)} title="Volume geral" className={icon}>
-              <VolumeIcon />
+            <button onClick={() => setVolOpen((o) => !o)} title="Volume geral" className={`${round} w-[38px] h-[38px]`}>
+              <SmIcon name="vol" size={16} />
             </button>
             {volOpen && (
-              <div className="absolute bottom-9 left-1/2 -translate-x-1/2 bg-[#1c1c1c] rounded-lg px-3 py-2 shadow-xl">
+              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-chip border border-ln3 rounded-xl px-3 py-2.5 shadow-xl">
                 <input
                   type="range"
                   min={0}
@@ -57,68 +60,69 @@ export function TransportBar(p: Props): React.ReactElement {
                   value={p.master}
                   onChange={(e) => p.onMaster(parseFloat(e.target.value))}
                   className="no-drag studio-volume w-28"
-                  style={{ background: `linear-gradient(to right, #fff ${p.master * 100}%, rgba(255,255,255,0.18) ${p.master * 100}%)` }}
+                  style={{ background: `linear-gradient(to right, #ff5b1f ${p.master * 100}%, #26262b ${p.master * 100}%)` }}
                 />
               </div>
             )}
           </div>
-          <button onClick={p.onPrev} title="Seção anterior" className={icon}>
-            <RewindIcon className="w-6 h-6" />
+          <button onClick={p.onPrev} title="Seção anterior" className={`${round} w-[42px] h-[42px]`}>
+            <SmIcon name="prev" size={16} />
           </button>
-          <button onClick={p.onTogglePlay} disabled={p.duration === 0} title="Tocar / pausar (espaço)" className={icon}>
-            {p.playing ? <PauseBarsIcon className="w-6 h-6" /> : <PlayTriIcon className="w-6 h-6" />}
+          <button
+            onClick={p.onTogglePlay}
+            disabled={p.duration === 0}
+            title={p.playing ? 'Pausar (Espaço)' : 'Tocar (Espaço)'}
+            className="no-drag w-14 h-14 rounded-full bg-fg text-[#0a0a0b] grid place-items-center shadow-[0_0_0_6px_rgba(255,255,255,0.06)] hover:bg-white disabled:opacity-40"
+          >
+            <SmIcon name={p.playing ? 'pause' : 'play'} size={22} />
           </button>
-          <button onClick={p.onNext} title="Próxima seção" className={icon}>
-            <ForwardIcon className="w-6 h-6" />
+          <button onClick={p.onNext} title="Próxima seção" className={`${round} w-[42px] h-[42px]`}>
+            <SmIcon name="next" size={16} />
           </button>
           <button
             onClick={p.onToggleLoop}
             title="Loop (L) — arraste na régua para marcar o trecho"
-            className={`no-drag transition-colors ${p.loopOn ? 'text-amber-300' : 'text-white/85 hover:text-white'}`}
+            className={`no-drag w-[38px] h-[38px] rounded-full grid place-items-center border transition-colors ${p.loopOn ? 'bg-acc/[0.16] border-acc text-acc2' : 'bg-chip border-ln2 text-[#e6e6e8] hover:bg-btn'}`}
           >
-            <LoopIcon />
+            <SmIcon name="repeat" size={16} />
           </button>
         </div>
-        <div className="flex items-center gap-3 text-[11px] text-white/60 tabular-nums">
-          <span className="w-9 text-right">{fmtTime(pos)}</span>
+        <div className="flex items-center gap-2.5 w-[560px] max-w-full font-mono text-[12px] font-semibold text-[#d6d6da] tabular-nums">
+          <span>{fmtTime(pos)}</span>
           <div
-            className="no-drag relative w-[290px] h-1 rounded-full bg-white/20 cursor-pointer"
+            className="no-drag relative flex-1 h-[5px] rounded-full bg-btn2 cursor-pointer"
             onClick={(e) => {
               const r = e.currentTarget.getBoundingClientRect()
               p.onSeek(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * p.duration)
             }}
           >
-            <div className="absolute inset-y-0 left-0 rounded-full bg-white/70" style={{ width: `${frac * 100}%` }} />
-            <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-white" style={{ left: `${frac * 100}%` }} />
+            <div className="absolute inset-y-0 left-0 rounded-full bg-acc" style={{ width: `${frac * 100}%` }} />
+            <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-fg" style={{ left: `${frac * 100}%` }} />
           </div>
-          <span className="w-9">{fmtTime(p.duration)}</span>
+          <span className="text-mute">{fmtTime(p.duration)}</span>
         </div>
       </div>
-      <div className="absolute right-4 flex items-center gap-2">
+      <div className="flex items-center gap-1.5 justify-end">
         <button
           onClick={p.onToggleLoopMode}
           title="Ligado: arraste na régua para marcar o loop A–B. Desligado: arrastar move a agulha"
-          className={`${pill} ${p.loopMode ? 'bg-amber-300 text-black' : 'bg-[#1e1e1e] text-white hover:bg-[#2a2a2a]'}`}
+          className={`${pill} font-mono ${p.loopMode ? 'bg-acc/[0.16] border-acc text-acc3' : off}`}
         >
-          <LoopIcon className="w-4 h-4" /> Loop A–B
+          A–B
         </button>
-        <button disabled title="Letra — em breve" className={`${pill} bg-[#1e1e1e] text-white/35 cursor-not-allowed`}>
-          <LyricsIcon className="w-4 h-4" /> Letra
+        <button disabled title="Letra — em breve" className={`${pill} !border-dashed border-[#2f2f35] bg-transparent text-[#4a4a52] cursor-not-allowed`}>
+          Letra
         </button>
         <button
           onClick={p.onToggleChords}
           disabled={!p.chordsAvailable}
           title={p.chordsAvailable ? 'Mostrar/ocultar acordes' : 'Detectando acordes…'}
-          className={`${pill} ${p.showChords && p.chordsAvailable ? 'bg-white text-black' : 'bg-[#1e1e1e] text-white hover:bg-[#2a2a2a]'} disabled:opacity-40`}
+          className={`${pill} ${chordsOn ? on : off} disabled:bg-transparent disabled:text-[#4a4a52] disabled:hover:bg-transparent`}
         >
-          <ChordsIcon className="w-4 h-4" /> Acordes
+          Acordes
         </button>
-        <button
-          onClick={p.onToggleSections}
-          title="Mostrar/ocultar seções"
-          className={`${pill} ${p.showSections ? 'bg-white text-black' : 'bg-[#1e1e1e] text-white hover:bg-[#2a2a2a]'}`}
-        >
-          <SectionsIcon className="w-4 h-4" /> Seções
+        <button onClick={p.onToggleSections} title="Mostrar/ocultar seções" className={`${pill} ${p.showSections ? on : off}`}>
+          Seções
         </button>
       </div>
     </div>

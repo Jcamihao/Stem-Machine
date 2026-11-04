@@ -28,7 +28,7 @@ export function ChordStrip({ chords, duration, shift, onSeek, onEdit }: StripPro
     return () => ro.disconnect()
   }, [])
   return (
-    <div ref={ref} className="relative w-full h-6 mb-1">
+    <div ref={ref} className="relative w-full h-[34px] border-b border-chip">
       {chords.map((c, i) => {
         const name = formatChord(c.label, shift)
         if (!name) return null
@@ -41,8 +41,8 @@ export function ChordStrip({ chords, duration, shift, onSeek, onEdit }: StripPro
               setEdit({ index: i, x: e.clientX, y: e.clientY, text: name })
             }}
             title={`${name} — clique: ir para cá · botão direito: corrigir`}
-            className="no-drag absolute top-0 h-full px-1 text-left text-[11px] font-bold text-white/85 hover:text-white truncate border-l border-white/25"
-            style={{ left: `${pct(c.start)}%`, width: `${pct(c.end) - pct(c.start)}%` }}
+            className="no-drag absolute top-1.5 h-[22px] px-[7px] flex items-center rounded-md bg-chip border-l-2 border-[#3a3a40] font-mono text-[12px] font-bold text-[#d6d6da] hover:text-fg hover:bg-btn2 truncate"
+            style={{ left: `${pct(c.start)}%`, width: `calc(${pct(c.end) - pct(c.start)}% - 2px)` }}
           >
             {duration > 0 && ((c.end - c.start) / duration) * width >= name.length * 7.5 + 14 ? name : ''}
           </button>
@@ -52,11 +52,11 @@ export function ChordStrip({ chords, duration, shift, onSeek, onEdit }: StripPro
         createPortal(
           <div className="fixed inset-0 z-50" onClick={() => setEdit(null)}>
             <div
-              className="absolute w-[240px] bg-[#1a1a1a] border border-white/10 rounded-xl p-4 shadow-2xl"
+              className="absolute w-[260px] bg-chip border border-ln3 rounded-[14px] p-3.5 shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
               style={{ left: Math.min(edit.x, window.innerWidth - 260), top: Math.min(edit.y, window.innerHeight - 190) }}
               onClick={(e) => e.stopPropagation()}
             >
-              <p className="text-[12px] font-semibold mb-2">Corrigir acorde</p>
+              <p className="text-[13px] font-extrabold mb-2.5">Corrigir acorde</p>
               <input
                 autoFocus
                 value={edit.text}
@@ -69,7 +69,7 @@ export function ChordStrip({ chords, duration, shift, onSeek, onEdit }: StripPro
                   if (e.key === 'Escape') setEdit(null)
                 }}
                 placeholder="Ex.: Gm7, D/F#, C7M"
-                className="no-drag w-full h-9 px-3 rounded-md bg-[#262626] text-[14px] font-bold outline-none"
+                className="no-drag w-full h-[38px] px-3 rounded-lg bg-well border-[1.5px] border-acc font-mono text-[15px] font-bold outline-none"
               />
               <div className="flex gap-2 mt-3">
                 <button
@@ -78,7 +78,7 @@ export function ChordStrip({ chords, duration, shift, onSeek, onEdit }: StripPro
                     onEdit(edit.index, edit.text.trim())
                     setEdit(null)
                   }}
-                  className="no-drag flex-1 h-8 rounded-md bg-white text-black text-[12px] font-semibold disabled:opacity-40"
+                  className="no-drag flex-1 h-8 rounded-full bg-acc text-acc-ink text-[12px] font-extrabold disabled:opacity-40 hover:bg-acc2"
                 >
                   Salvar
                 </button>
@@ -87,12 +87,12 @@ export function ChordStrip({ chords, duration, shift, onSeek, onEdit }: StripPro
                     onEdit(edit.index, null)
                     setEdit(null)
                   }}
-                  className="no-drag flex-1 h-8 rounded-md bg-white/[0.08] hover:bg-white/15 text-[12px]"
+                  className="no-drag flex-1 h-8 rounded-full bg-btn2 border border-ln4 text-[#e6e6e8] text-[12px] font-bold hover:bg-ln4"
                 >
                   Sem acorde
                 </button>
               </div>
-              <p className="text-[10.5px] text-white/35 mt-2">O tom transposto é considerado: digite como você ouve agora.</p>
+              <p className="text-[10.5px] text-dim mt-2">O tom transposto é considerado: digite como você ouve agora.</p>
             </div>
           </div>,
           document.body
@@ -132,10 +132,10 @@ export function ChordNow({ chords, shift, getPosition }: NowProps): React.ReactE
     }
   }
   return (
-    <div className="flex items-baseline gap-3 min-w-[200px]">
-      <span className="text-[32px] font-extrabold leading-none tracking-tight min-w-[64px]">{cur || '—'}</span>
+    <div className="flex items-baseline gap-3.5 min-w-[200px]">
+      <span className="font-mono text-[34px] font-extrabold leading-none text-acc min-w-[70px]">{cur || '—'}</span>
       {upcoming.map((name, i) => (
-        <span key={i} className={`font-semibold ${i === 0 ? 'text-[17px] text-white/60' : 'text-[14px] text-white/35'}`}>
+        <span key={i} className={`font-mono font-bold ${i === 0 ? 'text-[16px] text-sub' : i === 1 ? 'text-[16px] text-dim' : 'text-[16px] text-[#55555c]'}`}>
           {name}
         </span>
       ))}

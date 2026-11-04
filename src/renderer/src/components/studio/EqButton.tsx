@@ -16,7 +16,7 @@ const BANDS: { key: keyof Eq; name: string; hint: string }[] = [
 ]
 
 // botão "EQ" da faixa: abre um painel com graves/médios/agudos (−12 a +12 dB)
-export function EqButton({ label, eq, onChange }: { label: string; eq: Eq; onChange: (eq: Eq) => void }): React.ReactElement {
+export function EqButton({ label, eq, onChange, color = '#3d8bff' }: { label: string; eq: Eq; onChange: (eq: Eq) => void; color?: string }): React.ReactElement {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null)
   const active = eq.low !== 0 || eq.mid !== 0 || eq.high !== 0
   const fmt = (db: number): string => (db === 0 ? '0 dB' : `${db > 0 ? '+' : ''}${db} dB`)
@@ -28,7 +28,8 @@ export function EqButton({ label, eq, onChange }: { label: string; eq: Eq; onCha
           setAt({ x: r.left, y: r.bottom + 6 })
         }}
         title="Equalizador desta faixa"
-        className={`no-drag h-4 px-1 rounded-[3px] text-[8px] font-bold ${active ? 'bg-sky-300 text-black' : 'bg-white/15 text-white/70 hover:bg-white/25'}`}
+        className={`no-drag w-8 h-6 rounded-md border font-mono text-[10px] font-extrabold ${active ? '' : 'bg-chip border-ln3 text-sub hover:border-[#55555c] hover:text-fg'}`}
+        style={active ? { background: `color-mix(in srgb, ${color} 20%, transparent)`, borderColor: color, color } : undefined}
       >
         EQ
       </button>
@@ -36,38 +37,46 @@ export function EqButton({ label, eq, onChange }: { label: string; eq: Eq; onCha
         createPortal(
           <div className="fixed inset-0 z-50" onClick={() => setAt(null)}>
             <div
-              className="absolute w-[300px] bg-[#1a1a1a] border border-white/10 rounded-xl p-5 shadow-2xl"
-              style={{ left: Math.min(at.x, window.innerWidth - 320), top: Math.min(at.y, window.innerHeight - 260) }}
+              className="absolute w-[300px] bg-chip border border-ln3 rounded-2xl p-[18px] shadow-[0_24px_60px_rgba(0,0,0,0.6)] flex flex-col gap-4"
+              style={{ left: Math.min(at.x, window.innerWidth - 320), top: Math.min(at.y, window.innerHeight - 300) }}
               onClick={(e) => e.stopPropagation()}
             >
-              <p className="text-center text-[14px] font-bold mb-4">EQ — {label}</p>
-              {BANDS.map(({ key, name, hint }) => (
-                <div key={key} className="mb-3">
-                  <div className="flex items-center justify-between text-[12px] mb-1.5">
-                    <span className="font-semibold">
-                      {name} <span className="text-white/35 font-normal">{hint}</span>
-                    </span>
-                    <span className={`tabular-nums ${eq[key] === 0 ? 'text-white/45' : 'text-sky-300'}`}>{fmt(eq[key])}</span>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
+                <p className="text-[15px] font-extrabold">EQ · {label}</p>
+              </div>
+              <div className="flex flex-col gap-3">
+                {BANDS.map(({ key, name, hint }) => (
+                  <div key={key}>
+                    <div className="flex items-center justify-between text-[12px] mb-1.5">
+                      <span className="font-bold text-sub">
+                        {name} <span className="text-dim font-normal">{hint}</span>
+                      </span>
+                      <span className={`font-mono font-bold tabular-nums ${eq[key] === 0 ? 'text-sub' : ''}`} style={eq[key] !== 0 ? { color } : undefined}>{fmt(eq[key])}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={-12}
+                      max={12}
+                      step={1}
+                      value={eq[key]}
+                      onChange={(e) => onChange({ ...eq, [key]: parseInt(e.target.value, 10) })}
+                      onDoubleClick={() => onChange({ ...eq, [key]: 0 })}
+                      title="Duplo clique zera"
+                      className="no-drag studio-volume w-full"
+                      style={{
+                        background: `linear-gradient(to right, #26262b ${Math.min(50, ((eq[key] + 12) / 24) * 100)}%, ${color} ${Math.min(50, ((eq[key] + 12) / 24) * 100)}%, ${color} ${Math.max(50, ((eq[key] + 12) / 24) * 100)}%, #26262b ${Math.max(50, ((eq[key] + 12) / 24) * 100)}%)`
+                      }}
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min={-12}
-                    max={12}
-                    step={1}
-                    value={eq[key]}
-                    onChange={(e) => onChange({ ...eq, [key]: parseInt(e.target.value, 10) })}
-                    onDoubleClick={() => onChange({ ...eq, [key]: 0 })}
-                    title="Duplo clique zera"
-                    className="no-drag studio-volume w-full"
-                    style={{
-                      background: `linear-gradient(to right, rgba(255,255,255,0.18) ${Math.min(50, ((eq[key] + 12) / 24) * 100)}%, #7dd3fc ${Math.min(50, ((eq[key] + 12) / 24) * 100)}%, #7dd3fc ${Math.max(50, ((eq[key] + 12) / 24) * 100)}%, rgba(255,255,255,0.18) ${Math.max(50, ((eq[key] + 12) / 24) * 100)}%)`
-                    }}
-                  />
-                </div>
-              ))}
-              <button onClick={() => onChange(FLAT_EQ)} className="no-drag w-full mt-1 text-[13px] text-white/45 hover:text-white">
-                Redefinir
-              </button>
+                ))}
+              </div>
+              <div className="flex items-center">
+                <span className="text-[11px] text-dim">−12 a +12 dB · duplo clique zera</span>
+                <button onClick={() => onChange(FLAT_EQ)} className="no-drag ml-auto h-[30px] px-3 rounded-full bg-btn2 border border-ln4 text-[#e6e6e8] text-[12px] font-bold hover:bg-ln4">
+                  Redefinir
+                </button>
+              </div>
             </div>
           </div>,
           document.body

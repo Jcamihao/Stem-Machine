@@ -5,19 +5,19 @@ import { mergeWithNext, moveBoundary, removeSection, renameSection, snapTo, spli
 
 // nomes em português (a guia de voz fala em português)
 export const SECTION_LABELS: Record<string, { name: string; color: string }> = {
-  intro: { name: 'Intro', color: '#94A3B8' },
-  verse: { name: 'Verso', color: '#60A5FA' },
-  prechorus: { name: 'Pré-refrão', color: '#22D3EE' },
-  chorus: { name: 'Refrão', color: '#F472B6' },
-  bridge: { name: 'Ponte', color: '#FBBF24' },
-  solo: { name: 'Solo', color: '#A78BFA' },
-  inst: { name: 'Instrumental', color: '#34D399' },
-  break: { name: 'Pausa', color: '#64748B' },
-  outro: { name: 'Final', color: '#94A3B8' }
+  intro: { name: 'Intro', color: '#8a8a92' },
+  verse: { name: 'Verso', color: '#3d8bff' },
+  prechorus: { name: 'Pré-refrão', color: '#33c7d6' },
+  chorus: { name: 'Refrão', color: '#ff5b1f' },
+  bridge: { name: 'Ponte', color: '#7b61ff' },
+  solo: { name: 'Solo', color: '#e2407a' },
+  inst: { name: 'Instrumental', color: '#b8d63a' },
+  break: { name: 'Pausa', color: '#55555c' },
+  outro: { name: 'Final', color: '#a8a8b2' }
 }
 
 const info = (label: string): { name: string; color: string } =>
-  SECTION_LABELS[label] ?? { name: label, color: '#94A3B8' }
+  SECTION_LABELS[label] ?? { name: label, color: '#8a8a92' }
 
 interface Props {
   sections: Section[]
@@ -45,20 +45,20 @@ export function SectionBar({ sections, duration, downbeats, getPosition, onGoTo,
     return Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * duration
   }
 
-  const item = 'no-drag text-left px-3 py-1.5 rounded-lg text-[12px] text-white/80 hover:bg-white/10 disabled:opacity-35 disabled:hover:bg-transparent'
+  const item = 'no-drag text-left px-2.5 py-[9px] rounded-lg text-[13px] font-semibold text-[#e6e6e8] hover:bg-btn2 disabled:opacity-35 disabled:hover:bg-transparent'
   const pos = getPosition()
   const menuSection = menu ? sections[menu.index] : null
   const canSplit = !!menuSection && pos > menuSection.start + 0.5 && pos < menuSection.end - 0.5
 
   return (
-    <div className="w-full pb-1">
-      <div ref={barRef} className="relative h-6">
+    <div className="w-full">
+      <div ref={barRef} className="relative h-[38px] border-b border-chip">
         {shown.map((s, i) => {
           const { name, color } = info(s.label)
           return (
             <div
               key={`${i}-${s.label}`}
-              className="absolute top-0 h-full"
+              className="absolute top-[5px] bottom-[5px]"
               style={{ left: `${pct(s.start)}%`, width: `calc(${pct(s.end) - pct(s.start)}% - 2px)` }}
             >
               <button
@@ -68,15 +68,15 @@ export function SectionBar({ sections, duration, downbeats, getPosition, onGoTo,
                   setMenu({ index: i, x: e.clientX, y: e.clientY })
                 }}
                 title={`${name} — clique: ir para cá (tocando, na virada do compasso) · arraste a borda esquerda para mover · botão direito: editar`}
-                className={`no-drag w-full h-full rounded-md text-[10px] font-semibold px-1.5 truncate text-left hover:opacity-100 ${pendingIndex === i ? 'animate-pulse opacity-100 ring-1 ring-white/70' : 'opacity-85'}`}
-                style={{ background: `${color}2e`, borderLeft: `2px solid ${color}`, color }}
+                className={`no-drag w-full h-full rounded-[7px] text-[12px] font-bold pl-3 pr-1.5 truncate text-left hover:brightness-125 ${pendingIndex === i ? 'animate-pulse ring-1 ring-white/70' : ''}`}
+                style={{ background: `${color}1f`, border: `1.5px solid ${color}66`, color: '#d6d6da' }}
               >
                 {name}
               </button>
               {i > 0 && (
                 <div
                   title="Arraste para mover o começo desta seção"
-                  className="no-drag absolute -left-1.5 top-0 h-full w-3 cursor-ew-resize z-10"
+                  className="no-drag absolute left-0 top-0 h-full w-[7px] cursor-ew-resize z-10 rounded-l-[7px]" style={{ background: color }}
                   onPointerDown={(e) => {
                     e.preventDefault()
                     e.currentTarget.setPointerCapture(e.pointerId)
@@ -100,7 +100,7 @@ export function SectionBar({ sections, duration, downbeats, getPosition, onGoTo,
         createPortal(
           <div className="fixed inset-0 z-50" onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null) }}>
             <div
-              className="absolute bg-[#1c1c1c] border border-white/10 rounded-xl p-1.5 flex flex-col min-w-[190px] shadow-2xl"
+              className="absolute bg-chip border border-ln3 rounded-[14px] p-1.5 flex flex-col min-w-[280px] shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
               style={{ left: Math.min(menu.x, window.innerWidth - 210), top: Math.max(8, Math.min(menu.y, window.innerHeight - 470)) }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -124,8 +124,8 @@ export function SectionBar({ sections, duration, downbeats, getPosition, onGoTo,
                   {label}
                 </button>
               ))}
-              <div className="h-px bg-white/10 my-1" />
-              <span className="px-3 py-1 text-[10px] uppercase tracking-widest text-white/35">Renomear</span>
+              <div className="h-px bg-ln2 mx-1.5 my-1" />
+              <span className="px-2.5 pt-1.5 pb-1 font-mono text-[10px] font-semibold tracking-[0.08em] text-dim uppercase">Renomear</span>
               {Object.entries(SECTION_LABELS).map(([label, { name, color }]) => (
                 <button
                   key={label}

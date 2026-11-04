@@ -34,15 +34,15 @@ type LastStart =
 function stageLabel(stage: JobStage, pct: number): string {
   switch (stage) {
     case 'metadata':
-      return 'reading info…'
+      return 'lendo vídeo…'
     case 'download':
-      return `downloading ${Math.round(pct)}%`
+      return `baixando ${Math.round(pct)}%`
     case 'convert':
-      return 'converting…'
+      return 'convertendo…'
     case 'separate':
-      return `separating ${Math.round(pct)}%`
+      return `separando ${Math.round(pct)}%`
     case 'finalize':
-      return 'finishing…'
+      return 'finalizando…'
   }
 }
 
@@ -345,7 +345,7 @@ export default function App(): React.ReactElement {
     }
     for (const [id, message] of Object.entries(errors)) {
       if (!map[id]) {
-        map[id] = { label: /already being processed/.test(message) ? 'queued' : 'failed', error: true }
+        map[id] = { label: /already being processed/.test(message) ? 'na fila' : 'falhou', error: true }
       }
     }
     return map
@@ -409,10 +409,10 @@ export default function App(): React.ReactElement {
   }
   // telas secundárias (progresso, adicionar) ganham uma barra com seta de voltar
   const withBack = (content: React.ReactElement, onBack: () => void): React.ReactElement => (
-    <div className="h-full flex flex-col bg-[#0a0a0a]">
-      <div className="h-14 shrink-0 flex items-center px-5">
-        <button onClick={onBack} title="Voltar para a biblioteca" className="no-drag text-white/80 hover:text-white">
-          <BackIcon />
+    <div className="h-full flex flex-col bg-app">
+      <div className="shrink-0 flex items-center px-5 py-3">
+        <button onClick={onBack} title="Voltar para a biblioteca" className="no-drag w-[38px] h-[38px] rounded-full bg-pop border border-ln2 text-[#e6e6e8] grid place-items-center hover:bg-btn">
+          <BackIcon className="w-5 h-5" />
         </button>
       </div>
       <div className="flex-1 min-h-0">{content}</div>

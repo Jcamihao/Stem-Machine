@@ -36,13 +36,13 @@ export function Ruler({ duration, beats, downbeats, loopA, loopB, loopOn, loopMo
       for (const t of beats) {
         const x = Math.round((t / duration) * w) + 0.5
         const strong = downs.has(Math.round(t * 1000))
-        ctx.fillStyle = strong ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.35)'
-        ctx.fillRect(x, strong ? 0 : h * 0.35, 1, strong ? h : h * 0.65)
+        ctx.fillStyle = strong ? '#a1a1a9' : '#55555c'
+        ctx.fillRect(x, strong ? h * 0.45 : h * 0.7, strong ? 1.5 : 1, strong ? h * 0.55 : h * 0.3)
       }
       if (beats.length === 0) {
         // sem batidas detectadas: marcas a cada 5s
-        ctx.fillStyle = 'rgba(255,255,255,0.3)'
-        for (let t = 0; t < duration; t += 5) ctx.fillRect(Math.round((t / duration) * w), h * 0.4, 1, h * 0.6)
+        ctx.fillStyle = '#55555c'
+        for (let t = 0; t < duration; t += 5) ctx.fillRect(Math.round((t / duration) * w), h * 0.6, 1, h * 0.4)
       }
     }
     draw()
@@ -60,7 +60,7 @@ export function Ruler({ duration, beats, downbeats, loopA, loopB, loopOn, loopMo
 
   return (
     <div
-      className={`no-drag relative h-8 ${loopMode ? 'cursor-crosshair' : 'cursor-ew-resize'}`}
+      className={`no-drag relative h-[30px] border-b border-btn2 ${loopMode ? 'cursor-crosshair' : 'cursor-ew-resize'}`}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId)
         const t = timeAt(e.clientX, e.currentTarget)
@@ -90,7 +90,7 @@ export function Ruler({ duration, beats, downbeats, loopA, loopB, loopOn, loopMo
     >
       {region && (
         <div
-          className={`absolute top-0 bottom-0 ${loopOn || drag ? 'bg-amber-300/30 border-x-2 border-amber-300' : 'bg-white/10 border-x border-white/40'}`}
+          className={`absolute top-0 bottom-0 ${loopOn || drag ? 'bg-acc/[0.18] border-x border-dashed border-acc/70' : 'bg-white/10 border-x border-white/40'}`}
           style={{ left: `${pct(region.a)}%`, width: `${pct(region.b) - pct(region.a)}%` }}
         />
       )}

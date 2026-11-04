@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { LogoMark, XIcon } from './Icons'
+import { SmIcon } from './SmIcon'
 
 interface Props {
   version?: string
@@ -15,27 +15,27 @@ export function About({ version, onClose }: Props): React.ReactElement {
       switch (event.status) {
         case 'checking':
           setCheckingUpdates(true)
-          setUpdateMessage('Checking for updates…')
+          setUpdateMessage('Verificando…')
           break
         case 'available':
           setCheckingUpdates(false)
-          setUpdateMessage(`Version ${event.version} is available and downloading.`)
+          setUpdateMessage(`Baixando a versão ${event.version}…`)
           break
         case 'none':
           setCheckingUpdates(false)
-          setUpdateMessage('Stem-Machine is up to date.')
+          setUpdateMessage('Você está na versão mais recente.')
           break
         case 'progress':
           setCheckingUpdates(false)
-          setUpdateMessage(`Downloading update… ${event.pct ?? 0}%`)
+          setUpdateMessage(`Baixando a atualização · ${event.pct ?? 0}%`)
           break
         case 'downloaded':
           setCheckingUpdates(false)
-          setUpdateMessage(`Version ${event.version} is ready. Restart Stem-Machine to install it.`)
+          setUpdateMessage(`A versão ${event.version} está pronta. Reinicie o Stem-Machine para instalar.`)
           break
         case 'error':
           setCheckingUpdates(false)
-          setUpdateMessage('Could not check for updates. Try again later.')
+          setUpdateMessage('Erro ao verificar: sem conexão. Tente de novo mais tarde.')
           break
       }
     })
@@ -52,7 +52,7 @@ export function About({ version, onClose }: Props): React.ReactElement {
 
   const checkForUpdates = async (): Promise<void> => {
     setCheckingUpdates(true)
-    setUpdateMessage('Checking for updates…')
+    setUpdateMessage('Verificando…')
     try {
       const result = await window.stemkit.checkForUpdates()
       if (result.ok) return
@@ -60,56 +60,61 @@ export function About({ version, onClose }: Props): React.ReactElement {
       // Show the same message if the updater IPC call itself fails.
     }
     setCheckingUpdates(false)
-    setUpdateMessage('Could not check for updates. Try again later.')
+    setUpdateMessage('Erro ao verificar: sem conexão. Tente de novo mais tarde.')
   }
 
+  const isErr = /^Erro/.test(updateMessage)
+  const isOk = /mais recente|está pronta/.test(updateMessage)
+  const busy = checkingUpdates || /Baixando/.test(updateMessage)
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="about-title"
-        className="relative w-full max-w-sm mx-4 rounded-2xl border border-white/[0.08] bg-[#16151d] p-6 text-center shadow-2xl rise-in"
+        className="relative w-[420px] max-w-[94vw] rounded-[18px] border border-ln3 bg-pop p-[22px] shadow-[0_30px_80px_rgba(0,0,0,0.6)] rise-in flex flex-col gap-4"
         onClick={(event) => event.stopPropagation()}
       >
         <button
           onClick={onClose}
-          title="Close"
-          className="no-drag absolute right-3 top-3 w-7 h-7 rounded-lg hover:bg-white/10 text-white/50 hover:text-white flex items-center justify-center transition-colors"
+          title="Fechar"
+          className="no-drag absolute right-4 top-4 w-8 h-8 rounded-full bg-btn border border-ln3 text-[#e6e6e8] grid place-items-center hover:bg-btn2"
         >
-          <XIcon className="w-3.5 h-3.5" />
+          <SmIcon name="x" size={16} />
         </button>
-        <LogoMark className="mx-auto h-11 w-11" />
-        <h2 id="about-title" className="mt-3 text-lg font-semibold tracking-tight">
-          About Stem-Machine
-        </h2>
-        {version && <p className="mt-1 text-xs text-white/40">Version {version}</p>}
-        <p className="mt-4 text-[12px] leading-relaxed text-white/50">
-          Split songs into stems and play them locally.
-        </p>
-
-        <div className="mt-5 flex justify-center gap-2">
-          <button
-            onClick={() => void window.stemkit.openExternal('https://github.com/Jcamihao/Stem-Machine/issues')}
-            className="no-drag px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/10 text-white/70 hover:text-white text-[12px] transition-colors"
-          >
-            Get help ↗
-          </button>
+        <span className="w-14 h-14 rounded-2xl bg-acc text-acc-ink grid place-items-center">
+          <SmIcon name="split" size={28} />
+        </span>
+        <div className="flex flex-col gap-1">
+          <h2 id="about-title" className="text-[22px] font-extrabold">Sobre o Stem-Machine</h2>
+          {version && <p className="font-mono text-[13px] font-semibold text-sub">versão {version}</p>}
+          <p className="text-[13px] text-mute mt-1">Separe músicas em stems e toque tudo localmente.</p>
         </div>
 
-        <div className="mt-5 border-t border-white/[0.07] pt-4">
-          <p role="status" className="min-h-4 text-[11px] text-white/40">
-            {updateMessage || 'Check whether a newer version is available.'}
+        <div className="flex flex-col gap-2">
+          <p
+            role="status"
+            className={`flex items-center gap-2.5 rounded-xl border bg-pop px-3.5 py-3 text-[13px] font-semibold ${
+              !updateMessage ? 'hidden' : isErr ? 'border-bad/40 text-bad3' : isOk ? 'border-ok/40 text-[#d6d6da]' : 'border-ln3 text-[#d6d6da]'
+            }`}
+          >
+            <span className={`flex ${isErr ? 'text-bad' : isOk ? 'text-ok' : 'text-acc2'} ${checkingUpdates ? 'animate-spin' : ''}`}>
+              <SmIcon name={isErr ? 'alert' : isOk ? 'check' : checkingUpdates ? 'loader' : 'download'} size={15} />
+            </span>
+            {updateMessage}
           </p>
           <button
-            onClick={() => void checkForUpdates()}
-            disabled={checkingUpdates}
-            className="no-drag mt-3 px-3 py-1.5 rounded-lg bg-violet-500/90 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-wait text-white text-[12px] font-semibold transition-colors"
+            onClick={() => void window.stemkit.openExternal('https://github.com/Jcamihao/Stem-Machine/issues')}
+            className="no-drag flex items-center justify-center gap-2 h-10 rounded-full bg-btn border border-ln3 text-[#e6e6e8] text-[13px] font-bold hover:bg-btn2"
           >
-            {checkingUpdates ? 'Checking…' : 'Check for updates'}
+            Obter ajuda <SmIcon name="ext" size={13} stroke={2.6} />
+          </button>
+          <button
+            onClick={() => void checkForUpdates()}
+            disabled={busy}
+            className="no-drag flex items-center justify-center gap-2 h-10 rounded-full bg-acc text-acc-ink text-[13px] font-extrabold hover:bg-acc2 disabled:opacity-50 disabled:cursor-wait"
+          >
+            <SmIcon name="refresh" size={16} /> {checkingUpdates ? 'Verificando…' : 'Verificar atualizações'}
           </button>
         </div>
       </div>
