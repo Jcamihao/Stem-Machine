@@ -14,6 +14,18 @@ export interface RemoteSection {
   end: number
 }
 
+// uma faixa (stem) da música aberta, para o mixer do celular
+export interface RemoteStem {
+  id: string // 'vocals', 'drums', 'bass', 'guitar', 'piano', 'other', 'click', 'guide'
+  label: string
+  volume: number // 0..max
+  max: number // 1 (instrumentos) ou 2 (metrônomo e guia)
+  muted: boolean
+  soloed: boolean
+}
+
+export const REMOTE_STEM_IDS = ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other', 'click', 'guide']
+
 // o que o app mostra ao celular; o app (renderer) publica, o servidor guarda o último e repassa
 export interface RemoteState {
   song: { id: string; title: string } | null // null = nenhuma música aberta (biblioteca)
@@ -29,6 +41,7 @@ export interface RemoteState {
   pendingSection: number | null // parte escolhida esperando a virada do compasso
   clickOn: boolean
   loopOn: boolean
+  stems: RemoteStem[] // faixas da música aberta (vazio sem música)
   pad: { playing: boolean; key: number; volume: number } // key 0 = C ... 11 = B; volume 0..1
   scene: { id: string; name: string; index: number; total: number; hasPrev: boolean; hasNext: boolean } | null
 }
@@ -45,6 +58,8 @@ export type RemoteCommand =
   | { type: 'semitones' | 'bpm'; delta: -1 | 1 }
   | { type: 'pad'; key?: number } // sem key: liga/desliga; com key (0..11): toca nessa nota
   | { type: 'padVolume'; value: number } // volume do pad, 0..1
+  | { type: 'stemVolume'; id: string; value: number } // volume de uma faixa, 0..2 (o app limita ao máximo da faixa)
+  | { type: 'stemMute' | 'stemSolo'; id: string }
   | { type: 'openSong'; id: string }
   | { type: 'openScene'; id: string }
 
@@ -68,6 +83,11 @@ export function parseRemoteCommand(raw: unknown): RemoteCommand | null {
   if (type === 'padVolume') {
     return typeof r.value === 'number' && Number.isFinite(r.value) ? { type, value: Math.round(Math.min(1, Math.max(0, r.value)) * 100) / 100 } : null
   }
+  if (type === 'stemVolume') {
+    if (typeof r.id !== 'string' || !REMOTE_STEM_IDS.includes(r.id)) return null
+    return typeof r.value === 'number' && Number.isFinite(r.value) ? { type, id: r.id, value: Math.round(Math.min(2, Math.max(0, r.value)) * 100) / 100 } : null
+  }
+  if (type === 'stemMute' || type === 'stemSolo') return typeof r.id === 'string' && REMOTE_STEM_IDS.includes(r.id) ? { type, id: r.id } : null
   if (type === 'openSong' || type === 'openScene') return isId(r.id) ? { type, id: r.id } : null
   return null
 }

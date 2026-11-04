@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { SongThumb } from '../../lib/thumbs'
-import { MetronomeIcon } from '../Icons'
 import { PadButton } from '../PadButton'
-import { BackIcon, SplitIcon, TuneIcon, MeterIcon, ExportIcon, MoreIcon, ChevronIcon } from './icons'
+import { SmIcon } from '../SmIcon'
 
 export interface MenuItem {
   label: string
@@ -10,7 +9,7 @@ export interface MenuItem {
   disabled?: boolean
 }
 
-function Dropdown({ items, align = 'right', children, className }: { items: MenuItem[]; align?: 'left' | 'right'; children: React.ReactNode; className: string }): React.ReactElement {
+function Dropdown({ items, align = 'right', children, className, width = 'min-w-[260px]' }: { items: MenuItem[]; align?: 'left' | 'right'; children: React.ReactNode; className: string; width?: string }): React.ReactElement {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -27,7 +26,7 @@ function Dropdown({ items, align = 'right', children, className }: { items: Menu
         {children}
       </button>
       {open && (
-        <div className={`absolute top-11 ${align === 'right' ? 'right-0' : 'left-0'} z-50 min-w-[200px] bg-[#1c1c1c] border border-white/10 rounded-lg p-1.5 shadow-2xl`}>
+        <div className={`absolute top-11 ${align === 'right' ? 'right-0' : 'left-0'} z-50 ${width} max-w-[380px] bg-chip border border-ln3 rounded-[14px] p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.6)] flex flex-col gap-px`}>
           {items.map((item) => (
             <button
               key={item.label}
@@ -36,7 +35,7 @@ function Dropdown({ items, align = 'right', children, className }: { items: Menu
                 setOpen(false)
                 item.onClick()
               }}
-              className="no-drag w-full text-left px-3 py-2 rounded-md text-[13px] text-white/85 hover:bg-white/10 disabled:opacity-35 disabled:hover:bg-transparent"
+              className="no-drag w-full text-left px-2.5 py-[9px] rounded-lg text-[13px] font-semibold text-[#e6e6e8] hover:bg-btn2 disabled:opacity-35 disabled:hover:bg-transparent"
             >
               {item.label}
             </button>
@@ -65,7 +64,7 @@ function Popover({ label, className, children }: { label: React.ReactNode; class
         {label}
       </button>
       {open && (
-        <div className="absolute top-11 right-0 z-50 w-[300px] bg-[#1a1a1a] border border-white/10 rounded-xl p-5 shadow-2xl">
+        <div className="absolute top-12 right-0 z-50 w-[300px] bg-chip border border-ln3 rounded-2xl p-[18px] shadow-[0_24px_60px_rgba(0,0,0,0.6)] flex flex-col gap-4">
           {children}
         </div>
       )}
@@ -87,21 +86,27 @@ function tempoName(bpm: number): string {
   return 'Prestissimo'
 }
 
-// − [valor] + no estilo dos painéis de BPM e tom
-function Stepper({ value, onMinus, onPlus }: { value: string; onMinus: () => void; onPlus: () => void }): React.ReactElement {
-  const btn = 'no-drag w-16 h-16 rounded-lg bg-[#262626] hover:bg-[#333] text-[28px] font-light text-white/90 flex items-center justify-center'
+// − [valor] + em pílula, no estilo dos painéis de BPM e tom
+function Stepper({ value, sub, mono = true, tone, onMinus, onPlus }: { value: string; sub?: string; mono?: boolean; tone?: string; onMinus: () => void; onPlus: () => void }): React.ReactElement {
+  const btn = 'no-drag w-11 h-11 rounded-full bg-btn2 hover:bg-ln4 text-fg grid place-items-center'
   return (
-    <div className="flex items-center gap-2">
-      <button onClick={onMinus} className={btn}>−</button>
-      <div className="flex-1 h-16 rounded-lg bg-[#262626] flex items-center justify-center text-[24px] font-semibold tabular-nums">{value}</div>
-      <button onClick={onPlus} className={btn}>+</button>
+    <div className="flex items-center justify-between bg-well border border-btn2 rounded-full p-[5px]">
+      <button onClick={onMinus} className={btn}><SmIcon name="minus" size={16} /></button>
+      <span className="flex flex-col items-center">
+        <span className={`text-[30px] font-bold leading-tight ${mono ? 'font-mono' : ''} ${tone ?? ''}`}>{value}</span>
+        {sub && <span className="font-mono text-[10px] text-mute">{sub}</span>}
+      </span>
+      <button onClick={onPlus} className={btn}><SmIcon name="plus" size={16} /></button>
     </div>
   )
 }
 
+const resetBtn = 'no-drag h-[30px] px-3 rounded-full bg-btn2 border border-ln4 text-[#e6e6e8] text-[12px] font-bold hover:bg-ln4'
+
 interface Props {
   title: string
   videoId: string
+  source?: string // "YouTube" ou "Arquivo local"
   onBack: () => void
   canAddStems: boolean
   onAddStems: () => void
@@ -132,129 +137,154 @@ interface Props {
 }
 
 export function StudioHeader(p: Props): React.ReactElement {
-  const chip = 'no-drag flex items-center gap-2 h-9 px-3 rounded-md bg-[#1e1e1e] text-[13px] font-semibold text-white hover:bg-[#2a2a2a]'
+  const pill = 'no-drag inline-flex items-center gap-[7px] h-9 px-[13px] rounded-full bg-pop border border-ln2 text-[13px] font-bold text-[#e6e6e8] hover:bg-btn disabled:opacity-40 disabled:hover:bg-pop'
+  const chip = 'no-drag inline-flex items-center gap-2 h-10 px-3.5 rounded-xl bg-chip border border-ln4 text-fg hover:bg-btn'
+  const pct = Math.round(p.speed * 100)
   return (
-    <div className="h-[84px] shrink-0 flex items-center gap-4 px-5">
-      <button onClick={p.onBack} title="Voltar para a biblioteca" className="no-drag text-white/80 hover:text-white">
-        <BackIcon />
+    <div className="h-16 shrink-0 flex items-center gap-2 px-4 border-b border-[#1d1d21]">
+      <button onClick={p.onBack} title="Voltar para a biblioteca" className="no-drag w-9 h-9 rounded-full bg-pop border border-ln2 text-[#e6e6e8] grid place-items-center hover:bg-btn">
+        <SmIcon name="back" size={16} />
       </button>
-      <div className="w-11 h-11 rounded-md overflow-hidden bg-[#1e1e1e] shrink-0">
+      <div className="w-10 h-10 rounded-[9px] overflow-hidden bg-chip border border-acc shrink-0">
         <SongThumb videoId={p.videoId} className="w-full h-full object-cover" />
       </div>
-      <h1 className="flex-1 min-w-0 text-[15px] font-bold truncate">{p.title}</h1>
+      <div className="flex flex-col gap-px min-w-0 max-w-[260px] mr-2.5">
+        <h1 className="text-[16px] font-extrabold truncate" title={p.title}>{p.title}</h1>
+        {p.source && <span className="text-[11px] text-mute truncate">{p.source}</span>}
+      </div>
       {p.scene && (
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-1 bg-well border border-btn2 rounded-full p-[3px] min-w-0">
+          <button onClick={p.scene.onPrev} disabled={!p.scene.onPrev} title="Música anterior do setlist" className="no-drag w-[30px] h-[30px] rounded-full bg-btn text-[#e6e6e8] grid place-items-center hover:bg-btn2 disabled:opacity-30">
+            <SmIcon name="prev" size={12} stroke={2.8} />
+          </button>
+          <button onClick={p.scene.onOpen} title="Abrir o setlist: pular para qualquer música" className="no-drag inline-flex items-center gap-1.5 h-[30px] px-3 rounded-full bg-btn2 text-fg text-[12px] font-bold hover:bg-ln4">
+            <SmIcon name="list" size={12} stroke={2.8} />
+            <span className="max-w-[130px] truncate">{p.scene.name}</span>
+            <span className="font-mono text-[11px] font-semibold text-acc3">{p.scene.index + 1}/{p.scene.total}</span>
+          </button>
+          <button onClick={p.scene.onNext} disabled={!p.scene.onNext} title="Próxima música do setlist" className="no-drag w-[30px] h-[30px] rounded-full bg-btn text-[#e6e6e8] grid place-items-center hover:bg-btn2 disabled:opacity-30">
+            <SmIcon name="next" size={12} stroke={2.8} />
+          </button>
           {p.scene.next && (
-            <div className="hidden xl:block max-w-[260px] truncate text-[11px] text-white/55" title="A próxima música do setlist">
-              Próxima: <span className="text-white/85 font-semibold">{p.scene.next.title}</span>
-              {[p.scene.next.key, p.scene.next.bpm ? `${Math.round(p.scene.next.bpm)} BPM` : null].filter(Boolean).map((t) => ` · ${t}`).join('')}
-            </div>
+            <span className="hidden xl:block max-w-[260px] truncate text-[12px] text-sub pl-1.5 pr-2.5 whitespace-nowrap" title="A próxima música do setlist">
+              Próxima: <b className="text-fg">{p.scene.next.title}</b>{' '}
+              <span className="font-mono text-vio">{[p.scene.next.key, p.scene.next.bpm ? Math.round(p.scene.next.bpm) : null].filter(Boolean).join(' · ')}</span>
+            </span>
           )}
-          <div className="flex items-center gap-1 h-9 pl-1 pr-1 rounded-md bg-[#1e1e1e] text-[12px] font-semibold shrink-0" title="Setlist em andamento">
-            <button onClick={p.scene.onOpen} title="Abrir o setlist: pular para qualquer música" className="no-drag flex items-center gap-1.5 h-7 px-2 rounded hover:bg-white/10">
-              <span className="max-w-[150px] truncate">{p.scene.name}</span>
-              <span className="text-white/45">{p.scene.index + 1}/{p.scene.total}</span>
-            </button>
-            <button onClick={p.scene.onPrev} disabled={!p.scene.onPrev} title="Música anterior do setlist" className="no-drag w-7 h-7 rounded hover:bg-white/10 disabled:opacity-30">◀</button>
-            <button onClick={p.scene.onNext} disabled={!p.scene.onNext} title="Próxima música do setlist" className="no-drag w-7 h-7 rounded hover:bg-white/10 disabled:opacity-30">▶</button>
-          </div>
         </div>
       )}
-      <div className="flex items-center gap-2.5">
-        <button onClick={p.onAddStems} disabled={!p.canAddStems} title="Adicionar faixas a esta música" className={`${chip} disabled:opacity-40`}>
-          <SplitIcon className="w-[18px] h-[18px]" /> Separar faixas
+      <span className="flex-1" />
+      <div className="flex items-center gap-2">
+        <button onClick={p.onAddStems} disabled={!p.canAddStems} title="Adicionar faixas a esta música" className={pill}>
+          <SmIcon name="split" size={16} /> Separar faixas
         </button>
         <Popover
-          className={`${chip} ${p.speed !== 1 ? 'ring-1 ring-amber-300' : ''}`}
+          className={`${chip} ${p.speed !== 1 ? '!border-warn' : ''}`}
           label={
             <>
-              <MetronomeIcon className="w-[18px] h-[18px]" /> {p.baseBpm ? Math.round(p.baseBpm * p.speed) : '—'}
-              <ChevronIcon className="w-4 h-4 text-white/50" />
+              <span className="text-warn flex"><SmIcon name="metro" size={16} /></span>
+              <span className="font-mono text-[18px] font-bold">{p.baseBpm ? Math.round(p.baseBpm * p.speed) : '—'}</span>
+              <span className="text-[10px] font-bold text-mute">BPM</span>
             </>
           }
         >
-          <p className="text-center text-[14px] font-bold mb-5">BPM</p>
+          <div className="flex justify-between items-center">
+            <span className="text-[13px] font-bold text-sub">Andamento</span>
+            <span className="text-[13px] font-extrabold text-warn">{p.baseBpm ? tempoName(p.baseBpm * p.speed) : '—'}</span>
+          </div>
           {p.baseBpm ? (
             <>
-              <p className="text-[13px] font-semibold mb-2">{tempoName(p.baseBpm * p.speed)}</p>
               <Stepper
                 value={String(Math.round(p.baseBpm * p.speed))}
+                sub={`${pct}% da original (${Math.round(p.baseBpm)})`}
                 // 1 BPM por clique; a velocidade fica entre 50% e 150% da original
                 onMinus={() => p.onBpmStep(-1)}
                 onPlus={() => p.onBpmStep(1)}
               />
+              <div className="h-[5px] rounded-full bg-btn2 relative mb-3">
+                <div className="absolute h-full bg-warn" style={{ left: `${Math.min(50, (pct - 50) / 1)}%`, width: `${Math.abs(pct - 100) / 1}%` }} />
+                <span className="absolute left-0 top-2.5 font-mono text-[10px] text-dim">50%</span>
+                <span className="absolute right-0 top-2.5 font-mono text-[10px] text-dim">150%</span>
+              </div>
             </>
           ) : (
-            <p className="text-[12px] text-white/50 text-center">Detectando batidas…</p>
+            <p className="text-[12px] text-sub flex items-center gap-1.5">
+              <span className="animate-spin inline-flex text-acc2"><SmIcon name="loader" size={12} stroke={2.8} /></span> Detectando batidas…
+            </p>
           )}
-          <button onClick={() => p.onSpeed(1)} className="no-drag w-full mt-4 text-[13px] text-white/45 hover:text-white">
-            Redefinir
-          </button>
+          <div className="flex justify-end">
+            <button onClick={() => p.onSpeed(1)} className={resetBtn}>Redefinir</button>
+          </div>
         </Popover>
         <Popover
-          className={`${chip} ${p.semitones !== 0 || p.tuningHz !== 440 ? 'ring-1 ring-amber-300' : ''}`}
+          className={`${chip} ${p.semitones !== 0 || p.tuningHz !== 440 ? '!border-vio' : ''}`}
           label={
             <>
-              <TuneIcon className="w-[18px] h-[18px]" />{' '}
-              {p.keyLabel ?? (p.semitones === 0 ? '—' : `${p.semitones > 0 ? '+' : ''}${p.semitones}`)}
-              <ChevronIcon className="w-4 h-4 text-white/50" />
+              <span className="text-vio flex"><SmIcon name="note" size={16} /></span>
+              <span className="font-mono text-[18px] font-bold">{p.keyLabel ?? (p.semitones === 0 ? '—' : `${p.semitones > 0 ? '+' : ''}${p.semitones}`)}</span>
+              <span className="font-mono text-[10px] font-semibold text-mute">{p.semitones > 0 ? '+' : ''}{p.semitones}</span>
             </>
           }
         >
-          <p className="text-center text-[14px] font-bold mb-3">Tom da Música</p>
-          <div className="flex items-center justify-center gap-2 mb-5 text-[13px] text-white/55">
-            Afinação (Hz):
-            <select
-              value={p.tuningHz}
-              onChange={(e) => p.onTuning(parseInt(e.target.value, 10))}
-              className="no-drag bg-transparent text-white font-semibold outline-none cursor-pointer"
-            >
-              {Array.from({ length: 21 }, (_, i) => 430 + i).map((hz) => (
-                <option key={hz} value={hz} className="bg-[#1a1a1a]">
-                  {hz}
-                </option>
-              ))}
-            </select>
+          <p className="text-[15px] font-extrabold">Tom da Música</p>
+          <div className="flex items-center justify-between gap-2.5">
+            <span className="text-[12px] font-bold text-sub">Afinação</span>
+            <span className="inline-flex items-center h-8 px-3 rounded-lg bg-well border border-ln2 font-mono text-[13px] font-semibold">
+              <select
+                value={p.tuningHz}
+                onChange={(e) => p.onTuning(parseInt(e.target.value, 10))}
+                className="no-drag bg-transparent text-fg outline-none cursor-pointer"
+              >
+                {Array.from({ length: 21 }, (_, i) => 430 + i).map((hz) => (
+                  <option key={hz} value={hz} className="bg-[#1a1a1a]">
+                    {hz} Hz
+                  </option>
+                ))}
+              </select>
+            </span>
           </div>
           <Stepper
             // nota do tom (dos acordes); sem acordes ainda, mostra a transposição
             value={p.keyLabel ?? (p.semitones === 0 ? 'Original' : `${p.semitones > 0 ? '+' : ''}${p.semitones}`)}
+            tone="text-[#b3a3ff]"
             onMinus={() => p.onSemitoneStep(-1)}
             onPlus={() => p.onSemitoneStep(1)}
           />
-          {p.originalKey && (
-            <p className="text-center text-[12px] text-white/45 mt-3">
-              Original: {p.originalKey}
-              {p.semitones !== 0 && ` (${p.semitones > 0 ? '+' : ''}${p.semitones} ${Math.abs(p.semitones) > 1 ? 'semitons' : 'semitom'})`}
-            </p>
-          )}
-          <button
-            onClick={() => {
-              p.onSemitones(0)
-              p.onTuning(440)
-            }}
-            className="no-drag w-full mt-4 text-[13px] text-white/45 hover:text-white"
-          >
-            Redefinir
-          </button>
+          <div className="flex items-center gap-2">
+            {p.originalKey ? (
+              <span className="font-mono text-[12px] text-sub">
+                Original: {p.originalKey}
+                {p.semitones !== 0 && ` (${p.semitones > 0 ? '+' : ''}${p.semitones} ${Math.abs(p.semitones) > 1 ? 'semitons' : 'semitom'})`}
+              </span>
+            ) : (
+              <span />
+            )}
+            <button
+              onClick={() => {
+                p.onSemitones(0)
+                p.onTuning(440)
+              }}
+              className={`${resetBtn} ml-auto`}
+            >
+              Redefinir
+            </button>
+          </div>
         </Popover>
-        <div className={chip} title="Compasso">
-          <MeterIcon className="w-[18px] h-[18px]" /> {p.beatsPerBar ? `${p.beatsPerBar}/4` : '—'}
-        </div>
-        <PadButton className={chip} />
+        <span title="Compasso" className="font-mono text-[14px] font-semibold text-sub px-1.5">{p.beatsPerBar ? `${p.beatsPerBar}/4` : '—'}</span>
+        <PadButton className={pill} />
         {p.outputSplit && (
-          <div
-            className="h-9 px-3 rounded-md bg-amber-300 text-black text-[12px] font-bold flex items-center"
+          <span
+            className="font-mono text-[11px] font-bold text-warn border border-warn/50 bg-warn/10 px-2 py-1 rounded-md"
             title="Saída L/R ligada: click e guia no L, música no R (desliga no menu ⋮ ou nas Configurações)"
           >
             L/R
-          </div>
+          </span>
         )}
-        <Dropdown items={p.exportItems} className="no-drag flex items-center gap-2 h-9 px-3.5 rounded-md border-2 border-white/90 text-[13px] font-semibold text-white hover:bg-white/10">
-          <ExportIcon className="w-[18px] h-[18px]" /> Exportar
+        <Dropdown items={p.exportItems} width="min-w-[260px]" className={pill}>
+          <SmIcon name="download" size={16} /> Exportar <SmIcon name="cd" size={12} stroke={2.8} />
         </Dropdown>
-        <Dropdown items={p.menuItems} className="no-drag w-8 h-9 flex items-center justify-center text-white/85 hover:text-white">
-          <MoreIcon />
+        <Dropdown items={p.menuItems} width="min-w-[340px]" className="no-drag w-9 h-9 rounded-full bg-pop border border-ln2 text-[#e6e6e8] grid place-items-center hover:bg-btn">
+          <SmIcon name="more" size={16} />
         </Dropdown>
       </div>
     </div>

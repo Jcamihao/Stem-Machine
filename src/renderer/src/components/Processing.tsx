@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import type { JobProgress } from '../../../shared/types'
 import { fmtTime } from '../lib/format'
 import { SongThumb } from '../lib/thumbs'
-import { XIcon } from './Icons'
+import { SmIcon } from './SmIcon'
 
 const STAGES: { id: JobProgress['stage']; label: string }[] = [
-  { id: 'metadata', label: 'Reading video' },
-  { id: 'download', label: 'Downloading audio' },
-  { id: 'convert', label: 'Converting' },
-  { id: 'separate', label: 'Separating stems' },
-  { id: 'finalize', label: 'Finishing up' }
+  { id: 'metadata', label: 'Lendo vídeo' },
+  { id: 'download', label: 'Baixando áudio' },
+  { id: 'convert', label: 'Convertendo' },
+  { id: 'separate', label: 'Separando stems' },
+  { id: 'finalize', label: 'Finalizando' }
 ]
 
 const stageOrder = (stage: JobProgress['stage'] | undefined): number =>
@@ -78,99 +78,110 @@ export function Processing({
     return () => window.clearInterval(id)
   }, [])
 
+  const failedIndex = error ? Math.max(stageIndex, 0) : -1
   return (
     <div className="h-full flex items-center justify-center px-8">
-      <div className="w-full max-w-md glass rounded-2xl p-7 rise-in">
-        <div className="flex items-center gap-3.5">
+      <div className="w-full max-w-[620px] bg-well border border-btn2 rounded-[18px] p-7 rise-in shadow-[0_30px_80px_rgba(0,0,0,0.5)] flex flex-col gap-[22px]">
+        <div className="flex items-center gap-4">
           {job?.videoId ? (
             <SongThumb
               videoId={job.videoId}
-              className="w-16 h-9 rounded-lg object-cover bg-white/5 block"
-              iconClassName="w-4 h-4 text-white/25"
+              className="w-32 h-[72px] rounded-[10px] object-cover bg-chip block"
+              iconClassName="w-5 h-5 text-white/25"
             />
           ) : (
-            <span className="w-10 h-10 rounded-full border-2 border-white/20 border-t-violet-300 animate-spin" />
+            <span className="w-10 h-10 rounded-full border-2 border-white/20 border-t-acc animate-spin" />
           )}
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold truncate">
-              {job?.title || (error ? 'Something went wrong' : 'Starting…')}
+            <h2 className="text-[22px] font-extrabold tracking-[-0.01em] truncate">
+              {job?.title || (error ? 'Algo deu errado' : 'Começando…')}
             </h2>
-            <p className="text-xs text-white/40 truncate">{job?.message ?? ''}</p>
+            <p className="text-[14px] text-acc2 font-semibold truncate">{job?.message ?? ''}</p>
           </div>
         </div>
 
-        <div className="mt-6 space-y-3.5">
+        <div className="flex flex-col gap-3">
           {stages.map((stage, i) => {
             const done = !error && i < stageIndex
             const active = !error && i === stageIndex
+            const failedHere = !!error && i === failedIndex
             const pct = active && job ? job.pct : done ? 100 : 0
             return (
-              <div key={stage.id} className="flex items-center gap-3">
+              <div key={stage.id} className="grid grid-cols-[24px_150px_1fr_44px] gap-3 items-center text-[14px]">
                 <span
-                  className={`w-4 h-4 rounded-full shrink-0 flex items-center justify-center text-[9px] font-bold ${
-                    done
-                      ? 'bg-emerald-400 text-black'
-                      : active
-                        ? 'bg-violet-400 text-black animate-pulse'
-                        : error && i >= stageIndex
-                          ? 'bg-rose-400/80 text-black'
-                          : 'bg-white/10'
+                  className={`w-[22px] h-[22px] rounded-full grid place-items-center text-[#0a0a0b] ${
+                    done ? 'bg-ok' : active ? 'bg-acc' : failedHere ? 'bg-bad' : 'bg-ln2'
                   }`}
                 >
-                  {done ? '✓' : ''}
+                  {done && <SmIcon name="check" size={12} stroke={3} />}
+                  {active && (
+                    <span className="animate-spin inline-flex">
+                      <SmIcon name="loader" size={12} stroke={3} />
+                    </span>
+                  )}
+                  {failedHere && <SmIcon name="alert" size={12} stroke={3} />}
                 </span>
-                <span className={`text-[13px] w-36 ${active ? 'text-white' : 'text-white/45'}`}>
+                <span
+                  className={
+                    active ? 'font-extrabold text-fg' : failedHere ? 'font-bold text-bad2' : done ? 'font-semibold text-fg' : 'font-semibold text-dim'
+                  }
+                >
                   {stage.label}
                 </span>
-                <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-violet-400 to-emerald-400 transition-[width] duration-300"
+                <span className="h-1.5 rounded-full bg-btn2 overflow-hidden">
+                  <span
+                    className={`block h-full rounded-full transition-[width] duration-300 ${done ? 'bg-ok' : 'bg-acc'}`}
                     style={{ width: `${pct}%` }}
                   />
-                </div>
+                </span>
+                <span className="font-mono text-[12px] text-right text-sub">{Math.round(pct)}%</span>
               </div>
             )
           })}
         </div>
 
         {timing && !error && (
-          <p className="mt-4 text-center text-[11px] font-mono text-white/35">
-            elapsed {fmtTime(timing.elapsed)}
-            {timing.left !== null ? ` · ~${fmtTime(timing.left)} left` : ' · estimating…'}
+          <p className="font-mono text-[13px] text-[#d6d6da]">
+            {fmtTime(timing.elapsed)} decorridos
+            {timing.left !== null ? ` · faltam ~${fmtTime(timing.left)}` : ' · estimando…'}
           </p>
         )}
 
         {error && (
-          <div className="mt-6 rise-in">
-            <div className="rounded-xl bg-rose-500/10 border border-rose-400/20 px-4 py-3 text-[13px] text-rose-200 break-words">
+          <div className="rise-in flex flex-col gap-4">
+            <div className="rounded-[10px] bg-bad/[0.08] border border-bad/30 px-3.5 py-3 font-mono text-[13px] text-bad3 break-words">
               {error}
             </div>
-            <div className="mt-4 flex gap-2 justify-end">
+            <div className="flex gap-2 flex-wrap">
               {botSuspected && !isLocal && (
                 <button
                   onClick={onUpdateYtDlp}
-                  className="px-4 py-2 rounded-lg glass text-[13px] hover:bg-white/10 transition-colors"
+                  className="no-drag inline-flex items-center gap-2 h-10 px-4 rounded-full bg-acc text-acc-ink text-[13px] font-extrabold hover:bg-acc2"
                 >
-                  Update yt-dlp & retry
+                  <SmIcon name="download" size={16} /> Atualizar yt-dlp e tentar de novo
                 </button>
               )}
               <button
                 onClick={onRetry}
-                className="px-4 py-2 rounded-lg bg-white text-black text-[13px] font-semibold hover:bg-white/90 transition-colors"
+                className={`no-drag inline-flex items-center gap-2 h-10 px-4 rounded-full text-[13px] font-bold ${
+                  botSuspected && !isLocal ? 'bg-btn border border-ln3 text-[#e6e6e8] hover:bg-btn2' : 'bg-acc text-acc-ink font-extrabold hover:bg-acc2'
+                }`}
               >
-                Try again
+                <SmIcon name="refresh" size={16} /> Tentar de novo
               </button>
             </div>
           </div>
         )}
 
         {!error && (
-          <button
-            onClick={onCancel}
-            className="mt-7 mx-auto flex items-center gap-1.5 text-xs text-white/35 hover:text-rose-300 transition-colors"
-          >
-            <XIcon className="w-3 h-3" /> Cancel
-          </button>
+          <div className="flex">
+            <button
+              onClick={onCancel}
+              className="no-drag ml-auto inline-flex items-center gap-2 h-9 px-3.5 rounded-full bg-btn border border-ln3 text-[#e6e6e8] text-[13px] font-bold hover:bg-btn2"
+            >
+              <SmIcon name="x" size={16} /> Cancelar
+            </button>
+          </div>
         )}
       </div>
     </div>

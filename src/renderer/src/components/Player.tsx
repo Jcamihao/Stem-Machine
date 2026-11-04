@@ -13,6 +13,8 @@ import { StudioHeader, type MenuItem } from './studio/StudioHeader'
 import { Ruler } from './studio/Ruler'
 import { Playhead } from './studio/Playhead'
 import { TrackRow, HEADER_W } from './studio/TrackRow'
+import { SmIcon } from './SmIcon'
+import { isLocalId } from '../../../shared/local'
 import { TransportBar } from './studio/TransportBar'
 import { FLAT_EQ, type Eq } from './studio/EqButton'
 import { SectionBar } from './SectionBar'
@@ -755,6 +757,22 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
       case 'click':
         toggleClick()
         return true
+      case 'stemVolume': {
+        // só faixas que existem nesta música; o celular manda 0..2, o máximo de cada faixa limita
+        const meta = stemMeta.find((m) => m.id === c.id)
+        if (!meta) return false
+        const max = meta.id === 'click' || meta.id === 'guide' ? 2 : 1
+        setVols((prev) => ({ ...prev, [meta.id]: Math.max(0, Math.min(max, c.value)) }))
+        return true
+      }
+      case 'stemMute':
+      case 'stemSolo': {
+        const meta = stemMeta.find((m) => m.id === c.id)
+        if (!meta) return false
+        if (c.type === 'stemMute') toggleMute(meta.id)
+        else toggleSolo(meta.id)
+        return true
+      }
       case 'loop': {
         // ligado: desliga. Desligado: volta ao A–B marcado se a agulha está dentro dele; senão
         // (celular e MIDI não marcam A–B) faz o loop da parte em que a música está
@@ -943,6 +961,18 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
   const remoteBpm = beats && beats.bpm > 0 ? Math.round(beats.bpm * clickFactor * speed) : null
   const remoteKey = musicKey ? keyName(musicKey, semitones) : null
   const remoteClickOn = !!beats && !mutes.has('click')
+  const remoteStems = useMemo(
+    () =>
+      stemMeta.map((m) => ({
+        id: m.id,
+        label: m.label,
+        volume: vols[m.id] ?? 1,
+        max: m.id === 'click' || m.id === 'guide' ? 2 : 1,
+        muted: mutes.has(m.id),
+        soloed: solos.has(m.id)
+      })),
+    [stemMeta, vols, mutes, solos]
+  )
   useEffect(() => {
     remote.setPlayer({
       song: { id: song.videoId, title: song.title },
@@ -956,9 +986,10 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
       sections: remoteSections,
       pendingSection,
       clickOn: remoteClickOn,
-      loopOn
+      loopOn,
+      stems: remoteStems
     })
-  }, [song.videoId, song.title, playing, decoding, duration, remoteBpm, remoteKey, semitones, remoteSections, pendingSection, remoteClickOn, loopOn, bump])
+  }, [song.videoId, song.title, playing, decoding, duration, remoteBpm, remoteKey, semitones, remoteSections, pendingSection, remoteClickOn, loopOn, remoteStems, bump])
   // tocando, a posição segue em 4 por segundo (o publicador ainda limita e ignora o que não mudou)
   useEffect(() => {
     if (!playing) return
@@ -1019,10 +1050,11 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
   ].filter(Boolean) as string[]
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0a0a] text-white">
+    <div className="h-full flex flex-col bg-app text-fg">
       <StudioHeader
         title={song.title}
         videoId={song.videoId}
+        source={isLocalId(song.videoId) ? 'Arquivo local' : 'YouTube'}
         onBack={onBack}
         canAddStems={missingStems.length > 0 && !decoding && !addProgress}
         onAddStems={() => setAddOpen(true)}
@@ -1061,10 +1093,10 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
       )}
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="relative pr-3">
+        <div className="relative pr-1.5">
           {showChords && chords && chords.chords.length > 0 && (
             <div className="flex">
-              <div className="shrink-0" style={{ width: HEADER_W }} />
+              <div className="shrink-0 flex items-center px-3.5 font-mono text-[10px] font-semibold tracking-[0.08em] text-dim border-b border-chip bg-rail border-r border-[#1d1d21]" style={{ width: HEADER_W, height: 34 }}>ACORDES</div>
               <div className="flex-1 min-w-0">
                 <ChordStrip chords={chords.chords} duration={duration} shift={semitones} onSeek={seekTo} onEdit={editChord} />
               </div>
@@ -1072,7 +1104,7 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
           )}
           {showSections && sections && sections.sections.length > 0 && (
             <div className="flex">
-              <div className="shrink-0" style={{ width: HEADER_W }} />
+              <div className="shrink-0 flex items-center px-3.5 font-mono text-[10px] font-semibold tracking-[0.08em] text-dim border-b border-chip bg-rail border-r border-[#1d1d21]" style={{ width: HEADER_W, height: 38 }}>SEÇÕES</div>
               <div className="flex-1 min-w-0">
                 <SectionBar
                   sections={sections.sections}
@@ -1087,8 +1119,8 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
               </div>
             </div>
           )}
-          <div className="flex mb-3">
-            <div className="shrink-0" style={{ width: HEADER_W }} />
+          <div className="flex">
+            <div className="shrink-0 flex items-center px-3.5 font-mono text-[10px] font-semibold tracking-[0.08em] text-dim border-b border-btn2 bg-rail border-r border-[#1d1d21]" style={{ width: HEADER_W, height: 30 }}>COMPASSO</div>
             <div className="flex-1 min-w-0">
               <Ruler
                 duration={duration}
@@ -1107,12 +1139,12 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5 pb-4">
+          <div className="flex flex-col">
             {decoding
               ? [...Array(5)].map((_, i) => (
-                  <div key={i} className="flex h-16">
-                    <div className="shrink-0" style={{ width: HEADER_W }} />
-                    <div className="flex-1 rounded-md bg-white/[0.06] animate-pulse" style={{ animationDelay: `${i * 120}ms` }} />
+                  <div key={i} className="flex h-20 border-b border-chip">
+                    <div className="shrink-0 bg-rail border-r border-[#1d1d21]" style={{ width: HEADER_W }} />
+                    <div className="flex-1 m-2 rounded-[9px] bg-white/[0.06] animate-pulse" style={{ animationDelay: `${i * 120}ms` }} />
                   </div>
                 ))
               : stemMeta.map((meta) => (
@@ -1137,14 +1169,14 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
                     onSeek={seekTo}
                   >
                     {meta.id === 'click' && (
-                      <div className="absolute top-1.5 left-2 flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex bg-chip border border-ln2 rounded-md p-0.5 gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                         {([0.5, 1, 2] as ClickFactor[]).map((f) => (
                           <button
                             key={f}
                             onClick={() => setClickFactor(f)}
                             title={f === 1 ? 'Pulso detectado' : f === 2 ? 'Dobro do pulso' : 'Metade do pulso'}
-                            className={`no-drag px-1.5 h-4 rounded-[3px] text-[9px] font-bold ${
-                              clickFactor === f ? 'bg-white text-black' : 'bg-black/45 text-white hover:bg-black/60'
+                            className={`no-drag px-[5px] py-[3px] rounded font-mono text-[10px] font-semibold ${
+                              clickFactor === f ? 'bg-warn text-[#0a0a0b]' : 'text-mute hover:text-fg'
                             }`}
                           >
                             {f === 0.5 ? '0.5x' : f === 2 ? '2x' : '1x'}
@@ -1156,7 +1188,7 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
                 ))}
           </div>
 
-          <div className="absolute top-0 bottom-0 right-3 pointer-events-none" style={{ left: HEADER_W }}>
+          <div className="absolute top-0 bottom-0 right-1.5 pointer-events-none" style={{ left: HEADER_W + 6 }}>
             <Playhead duration={duration} getPosition={getPosition} />
           </div>
         </div>
@@ -1199,7 +1231,7 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
       {notices.length > 0 && (
         <div className="fixed bottom-24 left-5 z-40 flex flex-col gap-1.5 max-w-[360px]">
           {notices.map((n) => (
-            <div key={n} className="bg-[#1c1c1c] border border-white/10 rounded-lg px-3 py-2 text-[12px] text-white/80 shadow-xl">
+            <div key={n} className="bg-chip border border-ln3 rounded-xl px-3.5 py-3 text-[13px] font-semibold shadow-[0_16px_40px_rgba(0,0,0,0.5)]">
               {n}
             </div>
           ))}
@@ -1211,19 +1243,19 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
         <>
       {addOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
           onClick={() => {
             setAddOpen(false)
             setAddPick(new Set())
           }}
         >
           <div
-            className="glass rounded-2xl p-6 w-[440px] max-w-[calc(100vw-32px)] flex flex-col gap-4"
+            className="bg-pop border border-ln3 rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.6)] p-[22px] w-[460px] max-w-[calc(100vw-32px)] flex flex-col gap-3.5"
             onClick={(e) => e.stopPropagation()}
           >
-            <div>
-              <h3 className="text-[15px] font-semibold">Add stems</h3>
-              <p className="text-[12px] text-white/45 mt-1">{song.title}</p>
+            <div className="flex flex-col gap-[3px]">
+              <h3 className="text-[19px] font-extrabold">Adicionar stems</h3>
+              <p className="text-[13px] text-sub truncate">{song.title}</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {missingStems.map((id) => {
@@ -1233,23 +1265,19 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
                   <button
                     key={id}
                     onClick={() => toggleAddPick(id)}
-                    className="no-drag flex items-center gap-2 px-3.5 py-2 rounded-full text-[13px] font-semibold border transition-colors capitalize"
-                    style={{
-                      color: on ? info.color : 'rgba(255,255,255,0.6)',
-                      borderColor: on ? info.color : 'rgba(255,255,255,0.12)',
-                      background: on ? `${info.color}22` : 'transparent'
-                    }}
+                    className={`no-drag inline-flex items-center gap-2 h-9 px-3.5 rounded-full text-[14px] font-bold border-[1.5px] ${on ? 'text-fg' : 'text-mute border-ln2 hover:text-fg'}`}
+                    style={on ? { borderColor: info.color, background: `${info.color}29` } : undefined}
                   >
-                    <span className="w-2 h-2 rounded-full" style={{ background: info.color }} />
+                    <span className="w-2 h-2 rounded-full" style={{ background: on ? info.color : '#3a3a40' }} />
                     {info.label}
                   </button>
                 )
               })}
             </div>
-            <p className="text-[12px] text-white/50 leading-relaxed">
+            <p className="text-[13px] text-sub leading-[1.55]">
               {addNeedsSix
-                ? 'Guitar and piano need the 6-source engine: the whole song will be split again from the saved audio. No re-upload needed.'
-                : 'Instant if the stem was already computed. Otherwise the song is split again from the saved audio. No re-upload needed.'}
+                ? 'Guitarra e piano exigem o motor de 6 fontes. A música é separada de novo a partir do áudio já salvo — não precisa baixar outra vez.'
+                : 'É instantâneo se o stem já foi calculado. Senão, a música é separada de novo a partir do áudio já salvo — não precisa baixar outra vez.'}
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -1257,16 +1285,16 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
                   setAddOpen(false)
                   setAddPick(new Set())
                 }}
-                className="no-drag px-4 py-2 rounded-lg bg-white/[0.06] hover:bg-white/10 text-white/70 text-[13px]"
+                className="no-drag h-[38px] px-4 rounded-full bg-btn border border-ln3 text-[#e6e6e8] font-bold hover:bg-btn2"
               >
-                Cancel
+                Cancelar
               </button>
               <button
                 onClick={confirmAddStems}
                 disabled={addPick.size === 0}
-                className="no-drag px-4 py-2 rounded-lg bg-violet-500/90 hover:bg-violet-500 text-white text-[13px] font-semibold disabled:opacity-40"
+                className="no-drag h-[38px] px-[18px] rounded-full bg-acc text-acc-ink font-extrabold hover:bg-acc2 disabled:opacity-40 disabled:hover:bg-acc"
               >
-                Add {addPick.size > 0 ? addPick.size : ''}
+                Adicionar {addPick.size > 0 ? addPick.size : ''}
               </button>
             </div>
           </div>
@@ -1275,33 +1303,37 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
 
       {/* progresso/erro: aviso fixo no canto, a música continua tocando */}
       {(addProgress || addError) && (
-        <div className="fixed bottom-5 right-5 z-40 glass rounded-xl p-4 w-[320px] flex flex-col gap-2 shadow-2xl">
+        <div className="fixed bottom-5 right-5 z-40 w-[360px] flex flex-col gap-2">
           {addProgress ? (
-            <>
-              <div className="flex items-center justify-between text-[12px] text-white/70">
-                <span className="truncate">{addProgress.message ?? 'Adding stems'}</span>
-                <span className="tabular-nums ml-2">{Math.round(addProgress.pct)}%</span>
+            <div className="bg-chip border border-ln3 rounded-[14px] p-3.5 flex flex-col gap-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.5)]">
+              <div className="flex items-center gap-2 text-[13px] font-bold">
+                <span className="animate-spin inline-flex text-acc2"><SmIcon name="loader" size={16} /></span>
+                <span className="truncate">{addProgress.message ?? 'Adicionando stems'}</span>
+                <span className="ml-auto font-mono text-[12px] font-semibold text-acc3 tabular-nums">{Math.round(addProgress.pct)}%</span>
               </div>
-              <div className="h-1 rounded-full bg-white/10 overflow-hidden">
-                <div className="h-full bg-violet-400 transition-all" style={{ width: `${addProgress.pct}%` }} />
+              <div className="h-[5px] rounded-full bg-btn2 overflow-hidden">
+                <div className="h-full bg-acc transition-all" style={{ width: `${addProgress.pct}%` }} />
               </div>
               <button
                 onClick={() => void window.stemkit.cancelJob(song.videoId)}
-                className="no-drag self-start text-[11px] text-white/45 hover:text-white"
+                className="no-drag self-start h-[30px] px-3 rounded-full bg-btn2 border border-ln4 text-[#e6e6e8] text-[12px] font-bold hover:bg-ln4"
               >
-                Cancel and keep current stems
+                Cancelar e manter os stems atuais
               </button>
-            </>
+            </div>
           ) : (
-            <>
-              <p className="text-[12px] text-rose-200 break-words">Could not add stems: {addError}</p>
+            <div className="bg-chip border border-bad/45 rounded-[14px] p-3.5 flex flex-col gap-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.5)]">
+              <div className="flex gap-2 text-[13px] font-semibold text-bad3 leading-snug">
+                <span className="text-bad flex shrink-0"><SmIcon name="alert" size={16} /></span>
+                <span className="break-words">Não foi possível adicionar stems: {addError}</span>
+              </div>
               <button
                 onClick={() => setAddError(null)}
-                className="no-drag self-start text-[11px] text-white/45 hover:text-white"
+                className="no-drag self-start h-[30px] px-3 rounded-full bg-btn2 border border-ln4 text-[#e6e6e8] text-[12px] font-bold hover:bg-ln4"
               >
-                Dismiss
+                Dispensar
               </button>
-            </>
+            </div>
           )}
         </div>
       )}

@@ -13,7 +13,7 @@ import { RemoteServer, pruneUploads, removeUploadFolder } from './remoteServer'
 import { RemoteJobs } from './remoteJobs'
 import { localSongId } from '../shared/local'
 import { parseVideoId } from '../shared/url'
-import { PIN_RE, REMOTE_PORT, type RemoteLibrary, type RemoteState, type RemoteStatus } from '../shared/remote'
+import { PIN_RE, REMOTE_PORT, REMOTE_STEM_IDS, type RemoteLibrary, type RemoteState, type RemoteStatus } from '../shared/remote'
 
 export const REMOTE_PAGE: string = pageHtml
 
@@ -61,6 +61,13 @@ export function cleanState(raw: unknown): RemoteState | null {
   const sc = r.scene && typeof r.scene === 'object' ? r.scene : null
   const pad = r.pad && typeof r.pad === 'object' ? r.pad : {}
   const key = int(pad.key, 0)
+  const stems = (Array.isArray(r.stems) ? r.stems.slice(0, 12) : [])
+    .filter((s: unknown) => s && typeof s === 'object')
+    .map((s: Record<string, unknown>) => {
+      const max = s.max === 2 ? 2 : 1
+      return { id: str(s.id), label: str(s.label), volume: Math.min(max, Math.max(0, num(s.volume))), max, muted: s.muted === true, soloed: s.soloed === true }
+    })
+    .filter((s: { id: string }) => REMOTE_STEM_IDS.includes(s.id))
   return {
     song,
     playing: r.playing === true,
@@ -75,6 +82,7 @@ export function cleanState(raw: unknown): RemoteState | null {
     pendingSection: typeof r.pendingSection === 'number' && Number.isInteger(r.pendingSection) ? r.pendingSection : null,
     clickOn: r.clickOn === true,
     loopOn: r.loopOn === true,
+    stems,
     pad: { playing: pad.playing === true, key: key >= 0 && key <= 11 ? key : 0, volume: typeof pad.volume === 'number' && Number.isFinite(pad.volume) ? Math.min(1, Math.max(0, pad.volume)) : 0.7 },
     scene: sc
       ? {

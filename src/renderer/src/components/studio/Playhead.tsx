@@ -20,8 +20,8 @@ export function Playhead({ duration, getPosition }: Props): React.ReactElement {
     return () => cancelAnimationFrame(raf)
   }, [duration, getPosition])
   return (
-    <div ref={ref} className="absolute top-0 bottom-0 w-px bg-white pointer-events-none z-10">
-      <div className="absolute -top-0.5 -translate-x-1/2 left-0 w-3.5 h-4 bg-white [clip-path:polygon(0_0,100%_0,100%_65%,50%_100%,0_65%)]" />
+    <div ref={ref} className="absolute top-0 bottom-0 w-0.5 -ml-px bg-acc shadow-[0_0_12px_rgba(255,91,31,0.6)] pointer-events-none z-10">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-acc rounded-t-[3px] rounded-b-full" />
     </div>
   )
 }
