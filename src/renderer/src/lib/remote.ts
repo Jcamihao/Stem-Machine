@@ -1,6 +1,6 @@
 // controle pelo celular, lado do app: junta o estado do player e do App e publica ao servidor
 // (main), e repassa os comandos que chegam do celular ao canal único (lib/commands)
-import type { RemoteSection, RemoteState } from '../../../shared/remote'
+import type { RemoteSection, RemoteState, RemoteStem } from '../../../shared/remote'
 import { runCommand } from './commands'
 
 export interface RemotePlayer {
@@ -16,6 +16,7 @@ export interface RemotePlayer {
   pendingSection: number | null
   clickOn: boolean
   loopOn: boolean
+  stems: RemoteStem[]
 }
 
 export interface RemoteApp {
@@ -41,7 +42,7 @@ function currentSection(sections: RemoteSection[], position: number): number {
 
 function compose(): RemoteState {
   if (!player) {
-    return { song: null, playing: false, loading: false, position: 0, duration: 0, bpm: null, keyLabel: null, semitones: 0, sections: [], currentSection: -1, pendingSection: null, clickOn: false, loopOn: false, ...app }
+    return { song: null, playing: false, loading: false, position: 0, duration: 0, bpm: null, keyLabel: null, semitones: 0, sections: [], currentSection: -1, pendingSection: null, clickOn: false, loopOn: false, stems: [], ...app }
   }
   const p = player
   return {
@@ -58,6 +59,7 @@ function compose(): RemoteState {
     pendingSection: p.pendingSection,
     clickOn: p.clickOn,
     loopOn: p.loopOn,
+    stems: p.stems,
     ...app
   }
 }

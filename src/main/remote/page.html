@@ -45,7 +45,8 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
 .transport{order:2;margin-bottom:14px}
 .parts-wrap{order:3;margin-bottom:14px}
 .ctrl{order:4;margin-bottom:14px}
-.padbox{order:5;margin-bottom:6px}
+.mixer{order:5;margin-bottom:14px}
+.padbox{order:6;margin-bottom:6px}
 
 .title{font-size:28px;font-weight:800;line-height:1.15;margin:2px 0 10px;word-break:break-word;overflow:hidden;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -114,6 +115,28 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
 .note:active{background:#33333a}
 .hit{filter:brightness(1.7);transform:scale(.97)}
 .armed{background:var(--ok)!important;color:#0d1a03!important;border-color:var(--ok)!important}
+
+/* mixer: volume, mudo e solo de cada faixa */
+.mixer .sec-title{margin-bottom:6px}
+.stem{padding:10px 0 4px;border-top:1px solid #26262b}
+.stem:first-of-type{border-top:0;padding-top:4px}
+.stem .sh{display:flex;align-items:baseline;gap:10px;margin:0 2px}
+.stem .sn{flex:1;min-width:0;font-size:17px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stem .sn i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:var(--c,#a1a1a9)}
+.stem .sv{flex:none;font-size:16px;font-weight:700;color:#d6d6da;font-variant-numeric:tabular-nums;font-family:ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace}
+.stem .sr{display:flex;align-items:center;gap:8px}
+.stem .ms{flex:none;width:52px;height:52px;border-radius:14px;background:#17171a;border:1.5px solid #2a2a2f;font-size:17px;font-weight:800;color:#a1a1a9;font-family:ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace}
+.stem .ms.on-m{background:var(--red);border-color:var(--red);color:#1a0207}
+.stem .ms.on-s{background:var(--amb);border-color:var(--amb);color:#1a1203}
+.stem .ms:active{background:#33333a}
+.stem input[type=range]{flex:1;min-width:0;height:52px;margin:0;background:transparent;-webkit-appearance:none;appearance:none;touch-action:none}
+.stem input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:999px;background:linear-gradient(to right,var(--c) var(--p,100%),#26262b var(--p,100%))}
+.stem input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:36px;height:36px;border-radius:50%;background:#f2f2f3;border:0;margin-top:-14px;box-shadow:0 1px 4px rgba(0,0,0,.6)}
+.stem input[type=range]::-moz-range-track{height:8px;border-radius:999px;background:#26262b}
+.stem input[type=range]::-moz-range-progress{height:8px;border-radius:999px;background:var(--c)}
+.stem input[type=range]::-moz-range-thumb{width:36px;height:36px;border-radius:50%;background:#f2f2f3;border:0}
+.stem.dim .sn,.stem.dim .sv{opacity:.45}
+@media (min-width:700px){.stem .ms{width:56px;height:56px}}
 
 /* vazio */
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:60%;padding:30px 10px}
@@ -326,6 +349,10 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
                 <button type="button" class="tog" id="loop">Loop</button>
               </div>
             </div>
+            <div class="mixer card" id="mixer" hidden>
+              <div class="sec-title">Faixas</div>
+              <div id="stems"></div>
+            </div>
             <div class="padbox card">
               <div class="padhead">
                 <div class="sec-title">Pad</div>
@@ -403,6 +430,10 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
   var openedScene = null; // id da cena aberta na aba Cenas
   var padVolDrag = false, padVolTimer = null, padVolLast = 0;
   var partsSig = '';
+  var stemsSig = '';
+  var stemDrag = {}; // id -> true enquanto o dedo está no slider daquela faixa
+  var stemTimer = {}, stemLast = {};
+  var STEM_COLORS = { vocals: '#ff5b1f', drums: '#7b61ff', bass: '#3d8bff', guitar: '#e2407a', piano: '#b8d63a', other: '#33c7d6', click: '#f5b638', guide: '#a8a8b2' };
   var listSig = '';
   var armed = { key: null, until: 0, el: null, timer: null };
   var toastTimer = null;
@@ -640,7 +671,7 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
   }
   function logout(msg) {
     try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignora */ }
-    token = null; state = null; library = null; libError = false; openedScene = null; partsSig = ''; listSig = '';
+    token = null; state = null; library = null; libError = false; openedScene = null; partsSig = ''; stemsSig = ''; listSig = '';
     resetAdd();
     if (reconnTimer) { clearTimeout(reconnTimer); reconnTimer = null; }
     closeEs();
@@ -808,6 +839,79 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
     }
   }
 
+  /* ---------- mixer ---------- */
+  function sendStemVol(id, input) {
+    stemTimer[id] = null; stemLast[id] = Date.now();
+    call('POST', '/api/cmd', { type: 'stemVolume', id: id, value: Number(input.value) / 100 }).then(null, function () {});
+  }
+  function buildStems(list) {
+    var box = $('stems');
+    box.textContent = '';
+    for (var i = 0; i < list.length; i++) {
+      (function (st) {
+        var color = STEM_COLORS[st.id] || '#a1a1a9';
+        var row = h('div', 'stem');
+        row.setAttribute('data-id', st.id);
+        row.style.setProperty('--c', color);
+        var head = h('div', 'sh');
+        var nm = h('span', 'sn');
+        nm.appendChild(h('i'));
+        nm.appendChild(document.createTextNode(st.label));
+        head.appendChild(nm);
+        head.appendChild(h('span', 'sv', '100%'));
+        var line = h('div', 'sr');
+        var m = h('button', 'ms', 'M'); m.type = 'button'; m.setAttribute('aria-label', 'Mudo: ' + st.label);
+        var so = h('button', 'ms', 'S'); so.type = 'button'; so.setAttribute('aria-label', 'Solo: ' + st.label);
+        var r = document.createElement('input');
+        r.type = 'range'; r.min = '0'; r.max = String(st.max * 100); r.step = '1'; r.value = String(Math.round(st.volume * 100));
+        r.setAttribute('aria-label', 'Volume: ' + st.label);
+        m.addEventListener('click', function () { send({ type: 'stemMute', id: st.id }, m); });
+        so.addEventListener('click', function () { send({ type: 'stemSolo', id: st.id }, so); });
+        function paint() {
+          row.querySelector('.sv').textContent = r.value + '%';
+          row.style.setProperty('--p', (Number(r.value) / Number(r.max) * 100) + '%');
+        }
+        r.addEventListener('input', function () {
+          stemDrag[st.id] = true;
+          paint();
+          var wait = 100 - (Date.now() - (stemLast[st.id] || 0));
+          if (wait <= 0) sendStemVol(st.id, r); else if (!stemTimer[st.id]) stemTimer[st.id] = setTimeout(function () { sendStemVol(st.id, r); }, wait);
+        });
+        r.addEventListener('change', function () {
+          if (stemTimer[st.id]) { clearTimeout(stemTimer[st.id]); stemTimer[st.id] = null; }
+          sendStemVol(st.id, r);
+          setTimeout(function () { stemDrag[st.id] = false; }, 400);
+        });
+        line.appendChild(m); line.appendChild(so); line.appendChild(r);
+        row.appendChild(head); row.appendChild(line);
+        box.appendChild(row);
+      })(list[i]);
+    }
+  }
+  function renderStems(list) {
+    $('mixer').hidden = list.length === 0;
+    var sig = state.song.id + '|';
+    for (var i = 0; i < list.length; i++) sig += list[i].id + ':' + list[i].max + ';';
+    if (sig !== stemsSig) { stemsSig = sig; buildStems(list); }
+    var anySolo = false;
+    for (var a = 0; a < list.length; a++) if (list[a].soloed) anySolo = true;
+    var rows = $('stems').children;
+    for (var j = 0; j < rows.length && j < list.length; j++) {
+      var st = list[j], row = rows[j];
+      var btns = row.querySelectorAll('.ms');
+      btns[0].className = 'ms' + (st.muted ? ' on-m' : '');
+      btns[1].className = 'ms' + (st.soloed ? ' on-s' : '');
+      row.className = 'stem' + ((st.muted || (anySolo && !st.soloed)) ? ' dim' : '');
+      var r = row.querySelector('input');
+      if (!stemDrag[st.id]) {
+        var v = Math.round(st.volume * 100);
+        if (r.value !== String(v)) r.value = String(v);
+        row.querySelector('.sv').textContent = v + '%';
+        row.style.setProperty('--p', (v / (st.max * 100) * 100) + '%');
+      }
+    }
+  }
+
   function render() {
     var s = state;
     var has = !!(s && s.song);
@@ -869,6 +973,8 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
       $('loop').className = 'tog' + (s.loopOn ? ' on' : '');
       $('click').textContent = s.clickOn ? 'Click ligado' : 'Click';
       $('loop').textContent = s.loopOn ? 'Loop ligado' : 'Loop';
+
+      renderStems(s.stems || []);
 
       var pd = s.pad || { playing: false, key: 0 };
       var pv = typeof pd.volume === 'number' ? Math.round(pd.volume * 100) : 70;

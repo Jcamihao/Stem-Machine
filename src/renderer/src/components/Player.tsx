@@ -757,6 +757,22 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
       case 'click':
         toggleClick()
         return true
+      case 'stemVolume': {
+        // só faixas que existem nesta música; o celular manda 0..2, o máximo de cada faixa limita
+        const meta = stemMeta.find((m) => m.id === c.id)
+        if (!meta) return false
+        const max = meta.id === 'click' || meta.id === 'guide' ? 2 : 1
+        setVols((prev) => ({ ...prev, [meta.id]: Math.max(0, Math.min(max, c.value)) }))
+        return true
+      }
+      case 'stemMute':
+      case 'stemSolo': {
+        const meta = stemMeta.find((m) => m.id === c.id)
+        if (!meta) return false
+        if (c.type === 'stemMute') toggleMute(meta.id)
+        else toggleSolo(meta.id)
+        return true
+      }
       case 'loop': {
         // ligado: desliga. Desligado: volta ao A–B marcado se a agulha está dentro dele; senão
         // (celular e MIDI não marcam A–B) faz o loop da parte em que a música está
@@ -945,6 +961,18 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
   const remoteBpm = beats && beats.bpm > 0 ? Math.round(beats.bpm * clickFactor * speed) : null
   const remoteKey = musicKey ? keyName(musicKey, semitones) : null
   const remoteClickOn = !!beats && !mutes.has('click')
+  const remoteStems = useMemo(
+    () =>
+      stemMeta.map((m) => ({
+        id: m.id,
+        label: m.label,
+        volume: vols[m.id] ?? 1,
+        max: m.id === 'click' || m.id === 'guide' ? 2 : 1,
+        muted: mutes.has(m.id),
+        soloed: solos.has(m.id)
+      })),
+    [stemMeta, vols, mutes, solos]
+  )
   useEffect(() => {
     remote.setPlayer({
       song: { id: song.videoId, title: song.title },
@@ -958,9 +986,10 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
       sections: remoteSections,
       pendingSection,
       clickOn: remoteClickOn,
-      loopOn
+      loopOn,
+      stems: remoteStems
     })
-  }, [song.videoId, song.title, playing, decoding, duration, remoteBpm, remoteKey, semitones, remoteSections, pendingSection, remoteClickOn, loopOn, bump])
+  }, [song.videoId, song.title, playing, decoding, duration, remoteBpm, remoteKey, semitones, remoteSections, pendingSection, remoteClickOn, loopOn, remoteStems, bump])
   // tocando, a posição segue em 4 por segundo (o publicador ainda limita e ignora o que não mudou)
   useEffect(() => {
     if (!playing) return
