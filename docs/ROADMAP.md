@@ -1,85 +1,63 @@
-# Stem-Machine: plano
+# Roadmap do Stem-Machine
 
-Fonte única do que falta. Ordem = importância (bases primeiro). Estimativa de esforço: P (pequeno), M (médio), G (grande), palpite, não medido.
+Atualizado em **2026-11-04**, versão em desenvolvimento: **0.11.0**.
 
-## Feito
+Esta é a fonte de verdade das pendências de produto. Estimativas são apenas referência: P (pequeno), M (médio) e G (grande).
 
-- Loop A–B, click inteligente, adicionar faixa depois, seções, acordes, tom da música
-- Guia de voz (Maria), saída L/R, velocidade e tom em tempo real, EQ e pan por faixa
-- Pad contínuo (sintetizado ou importado, com detecção do tom), mixagem salva por música
-- **Bloco A (bases):** camada de comandos, troca de parte na virada do compasso, cenas (setlist básico)
+## Entregue
 
-## Bloco B: em andamento
+- Separação local de stems, busca/links do YouTube e importação de áudio.
+- Player com mixagem por faixa, EQ, pan, solo, mute, velocidade, transposição e exportação WAV/AAC.
+- Batidas, click sincronizado, loop A–B, seções, acordes e guia de voz Maria.
+- Pad sintetizado/importado, saída PAN L/R e mixagem persistida por música.
+- Cenas/setlists, próxima música com tom/BPM e pad de transição.
+- Controle MIDI com aprendizagem de teclas.
+- Controle pelo celular com PIN na rede local, partes, transporte, tom, BPM, pad, metrônomo, PAN L/R, cenas e biblioteca.
+- Setlist no celular: abrir cena, listar músicas e pular diretamente para uma faixa (**S4 concluído**).
+- Adicionar músicas pelo celular: YouTube, upload de áudio até 500 MB, fila, progresso, erro e cancelamento.
+- Redesign das telas, tema escuro de estúdio (v2), e mixer por faixa no celular (volume, mudo e solo).
+- Controles rápidos no PC e no celular mesmo sem música aberta: metrônomo avulso com BPM manual, TAP tempo e pan; pad com pan; e PAN L/R.
 
-| # | Item | Esforço | Estado |
-|---|------|---------|--------|
-| 6 | Pad automático entre músicas (numa cena, entra no tom da próxima e some no play) | P | **feito** (v0.6.0) |
-| 7 | Controle MIDI (aprender tecla, mapa de ações, "próximo refrão") | M | **feito** (v0.7.0; falta testar com um controlador de verdade) |
-| 4 | Controle pelo celular no navegador (rede local, PIN, partes, play, tom, BPM, pad, cenas) | G | **feito** (v0.8.0; falta testar no Safari do iPhone e do iPad) |
-| 5 | Guia com a sua voz: **gravar as 13 palavras dentro do app** (o clone por IA ficou robótico e foi descartado) | M | a fazer |
+## Prioridade atual
 
-## Setlist do dia (pedido em 2026-10-31)
+| Item | Esforço | Estado |
+|---|---:|---|
+| S5 — Tom específico por música dentro de um setlist, sem mudar a mixagem da biblioteca | P | a fazer |
+| SE1 — Criar parte personalizada, com nome livre, cor e intervalo marcado na barra | M | a fazer |
+| SE2 — Fazer nomes livres funcionarem no celular, MIDI e setlist | P | depende de SE1 |
+| Guia com a sua voz — gravar no app as 13 palavras da guia | M | a fazer |
 
-Evolução das cenas: montar o setlist do dia e transitar entre as músicas sem passar pela biblioteca. Proposta inicial, a detalhar antes de implementar.
+## Seções e detecção
 
-| # | Item | Esforço |
-|---|------|---------|
-| S1 | **Montar rápido:** buscar na biblioteca, duplicar o setlist de outro dia, ordenar | M | **feito** (v0.9.0) |
-| S2 | **Modo ao vivo:** tela com o setlist inteiro, música atual e próxima em destaque, pular para qualquer uma com um toque | M | **feito** (v0.9.0, gaveta no player) |
-| S3 | **Transição contínua:** emendar uma música na outra com o pad (item 6), tom da próxima visível | M | **feito** (pad entre músicas + "Próxima: título · tom · BPM") |
-| S4 | **Setlist no celular:** lista e pulo de música pelo controle remoto (depende do item 4) | M |
-| S5 | **Tom por música dentro do setlist** (hoje o tom vem da mixagem salva da música) | P |
-
-Ordem sugerida: S1 e S2 logo depois do item 4; S3 junto com o 6 já feito; S4 com o item 4; S5 por último.
-
-## Seções: detecção e partes personalizadas (pedido em 2026-10-31)
-
-Hoje: o app detecta as partes sozinho (modelo all-in-one) e você pode mover o limite, dividir, juntar, remover e renomear, mas só entre 9 nomes fixos. Dois problemas: a detecção erra em algumas músicas, e não dá para criar uma parte com nome próprio ("Tag", "Vamp", "Refrão 2x"). Proposta inicial, a detalhar antes de implementar.
-
-| # | Item | Esforço |
-|---|------|---------|
-| SE1 | **Parte personalizada:** nome livre e cor escolhida por você (hoje só os 9 nomes fixos); criar do zero marcando início e fim na barra | M |
-| SE2 | **Nomes livres funcionando em tudo:** celular, MIDI ("próximo refrão" usa o nome-chave) e setlist precisam aceitar o nome personalizado | P |
-| SE3 | **Guia de voz com o nome da parte personalizada** (a guia só tem as 13 palavras fixas; precisa gerar a voz do nome, ou falar "parte N"). Depende do item "guia com a sua voz" | M |
-| SE4 | **Melhorar a detecção automática:** medir onde erra (comparando com as suas correções), testar ajustes e alternativas (acordes e repetição da música) e **aprender com o que você corrige** (junta com o log de correções) | G, a investigar |
-
-Ordem sugerida: SE1 e SE2 primeiro (resolvem o dia a dia sem esperar a detecção ficar perfeita); SE4 depois, com os dados das suas correções.
-
-## Celular: adicionar músicas (pedido em 2026-10-31)
-
-Hoje o celular só controla o que já está na biblioteca. Pedido: colocar links do YouTube e arquivos de áudio direto pelo celular, e a separação roda no PC. Proposta inicial, a detalhar antes de implementar.
-
-| # | Item | Esforço |
-|---|------|---------|
-| CA1 | **Link do YouTube pelo celular:** colar o link na página, o PC baixa e separa | M | **feito** (v0.10.0; o download real de um link ainda não foi testado, só as respostas e o caso "já existe") |
-| CA2 | **Arquivo de áudio pelo celular:** enviar do iPhone (Arquivos, Gravador, iCloud) para o PC, com barra de progresso | M | **feito** (v0.10.0; falta testar no iPhone de verdade) |
-| CA3 | **Fila e progresso no celular:** "na fila", baixando, separando %, concluída, erro e cancelar; a música nova aparece na aba Músicas | M | **feito** (v0.10.0) |
-
-Depende do item 4 (controle pelo celular, feito). Faz sentido junto com o S4.
+| Item | Esforço | Estado |
+|---|---:|---|
+| SE3 — Guia de voz para partes com nome personalizado | M | depende de SE1 e da gravação da voz |
+| SE4 — Melhorar detecção automática e aprender com correções | G | investigar depois de registrar correções |
+| Log de correções para treino | M | a fazer |
 
 ## Depois
 
-| # | Item | Esforço |
-|---|------|---------|
-| 8 | Metrônomo avulso com tap tempo | P |
-| 9 | Cifra colada (transpõe com a música) | P–M |
-| 10 | Arranjos (reordenar, repetir, cortar partes; salvar versões) | G |
-| 11 | Preferências aprendidas | M |
-| 12 | Filtros e gênero na biblioteca | P |
-| 13 | Letra | G |
-| 14 | Log das correções para treino | M |
-| 15 | Pacote instalável para o amigo (Windows + NVIDIA) | M |
-| 16 | Áudio para MIDI | G |
-| 17 | Saídas separadas por faixa (exige ASIO, provável que fique fora) | G |
-| 18 | App nativo iOS com xtool (só se o controle pelo celular não bastar) | G |
+| Item | Esforço |
+|---|---:|
+| Cifra colada que transpõe com a música | P–M |
+| Arranjos: reordenar, repetir, cortar partes e salvar versões | G |
+| Preferências aprendidas | M |
+| Filtros e gênero na biblioteca | P |
+| Letra | G |
+| Pacote para amigo: Windows + NVIDIA | M |
+| Áudio para MIDI | G |
+| Saídas separadas por faixa (ASIO; possivelmente fora de escopo) | G |
+| App iOS nativo, somente se o controle pelo navegador não bastar | G |
 
-## Descartado
+## Validação em campo pendente
 
-- 12 stems (sem modelo aberto bom para violão×guitarra, solo×base, teclado×piano).
-- GPU na nuvem (AWS, Colab): o PC resolve de graça.
-- Guia na voz clonada por IA (Chatterbox): soou robótica.
+- Testar download real de link do YouTube pelo celular.
+- Testar envio de arquivo pelo Safari no iPhone/iPad.
+- Testar controle MIDI com um controlador físico.
+- Validar acordes, troca de partes, cenas e PAN L/R em ensaio ou culto com áudio real.
 
-## Para você validar
+## Decisões já tomadas
 
-- Precisão dos acordes pelo ouvido.
-- Troca de parte e cenas no som real (os testes rodaram mudos).
+- Não perseguir 12 stems: não há modelo aberto confiável para as separações desejadas.
+- Não usar GPU em nuvem: a execução local atende sem custo recorrente.
+- Não usar clone de voz por IA para a guia: o resultado foi robótico; a direção é gravar a própria voz.

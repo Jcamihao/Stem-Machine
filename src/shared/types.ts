@@ -46,8 +46,13 @@ export interface AppSettings {
   padSource: string
   padKey: number
   padVolume: number // 0..1
+  padPan: number // -1 = L, 0 = centro, 1 = R; ignorado pela saída L/R
   padBrightness: number // 0..1 (filtro: escuro -> aberto)
   padTransition: PadTransition
+  // metrônomo avulso: BPM e pan persistidos para usar fora de uma música
+  metronomeBpm: number
+  metronomePan: number
+  metronomeVolume: number // 0 a 2, 1 = volume original do metrônomo
   // clique numa parte: 'bar' espera a virada do compasso (tocando), 'now' salta na hora
   sectionSwitch: 'bar' | 'now'
   // ao fim da música, abre a próxima da cena sozinho (padrão: não, no culto quem decide é você)
@@ -103,8 +108,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   padSource: 'synth',
   padKey: 0,
   padVolume: 0.7,
+  padPan: 0,
   padBrightness: 0.75,
   padTransition: 'slow',
+  metronomeBpm: 120,
+  metronomePan: 0,
+  metronomeVolume: 1,
   sectionSwitch: 'bar',
   sceneAutoAdvance: false,
   padBetween: false,

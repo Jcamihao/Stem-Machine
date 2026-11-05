@@ -42,7 +42,10 @@ export interface RemoteState {
   clickOn: boolean
   loopOn: boolean
   stems: RemoteStem[] // faixas da música aberta (vazio sem música)
-  pad: { playing: boolean; key: number; volume: number } // key 0 = C ... 11 = B; volume 0..1
+  pad: { playing: boolean; key: number; volume: number; pan: number } // pan: -1 L ... 1 R
+  // fora de uma música, o metrônomo avulso usa o último BPM conhecido (120 inicial)
+  metronome: { playing: boolean; bpm: number; pan: number }
+  outputSplit: boolean // click/guia no L, música no R
   scene: { id: string; name: string; index: number; total: number; hasPrev: boolean; hasNext: boolean } | null
 }
 
@@ -53,17 +56,22 @@ export interface RemoteLibrary {
 
 // comandos que o celular pode mandar (subconjunto de lib/commands do renderer)
 export type RemoteCommand =
-  | { type: 'toggle' | 'play' | 'pause' | 'click' | 'loop' | 'nextSong' | 'prevSong' }
+  | { type: 'toggle' | 'play' | 'pause' | 'click' | 'metronomeToggle' | 'loop' | 'nextSong' | 'prevSong' }
   | { type: 'goToSection'; index: number }
   | { type: 'semitones' | 'bpm'; delta: -1 | 1 }
   | { type: 'pad'; key?: number } // sem key: liga/desliga; com key (0..11): toca nessa nota
   | { type: 'padVolume'; value: number } // volume do pad, 0..1
   | { type: 'stemVolume'; id: string; value: number } // volume de uma faixa, 0..2 (o app limita ao máximo da faixa)
   | { type: 'stemMute' | 'stemSolo'; id: string }
+  | { type: 'padPan'; value: number }
+  | { type: 'metronomeBpm'; value: number }
+  | { type: 'metronomeTap' }
+  | { type: 'metronomePan'; value: number }
+  | { type: 'outputSplit' }
   | { type: 'openSong'; id: string }
   | { type: 'openScene'; id: string }
 
-const SIMPLE = new Set(['toggle', 'play', 'pause', 'click', 'loop', 'nextSong', 'prevSong'])
+const SIMPLE = new Set(['toggle', 'play', 'pause', 'click', 'metronomeToggle', 'loop', 'nextSong', 'prevSong', 'outputSplit', 'metronomeTap'])
 const isInt = (v: unknown, lo: number, hi: number): v is number => typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi
 const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 200
 
@@ -88,6 +96,10 @@ export function parseRemoteCommand(raw: unknown): RemoteCommand | null {
     return typeof r.value === 'number' && Number.isFinite(r.value) ? { type, id: r.id, value: Math.round(Math.min(2, Math.max(0, r.value)) * 100) / 100 } : null
   }
   if (type === 'stemMute' || type === 'stemSolo') return typeof r.id === 'string' && REMOTE_STEM_IDS.includes(r.id) ? { type, id: r.id } : null
+  if (type === 'padPan' || type === 'metronomePan') {
+    return typeof r.value === 'number' && Number.isFinite(r.value) ? { type, value: Math.round(Math.min(1, Math.max(-1, r.value)) * 100) / 100 } : null
+  }
+  if (type === 'metronomeBpm') return isInt(r.value, 30, 300) ? { type, value: r.value } : null
   if (type === 'openSong' || type === 'openScene') return isId(r.id) ? { type, id: r.id } : null
   return null
 }

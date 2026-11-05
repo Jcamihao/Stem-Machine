@@ -164,12 +164,12 @@ function main() {
     const found = findNode(required)
     if (!found) {
       console.error(
-        `StemKit needs Node ${required}+ but you have ${process.versions.node}, and no matching Node install was found.\nInstall Node ${required} or newer from https://nodejs.org`
+        `Stem-Machine needs Node ${required}+ but you have ${process.versions.node}, and no matching Node install was found.\nInstall Node ${required} or newer from https://nodejs.org`
       )
       process.exit(1)
     }
     console.log(
-      `> StemKit needs Node ${required}+ (active: ${process.versions.node}) — using ${found.version} at ${found.nodeBin}`
+      `> Stem-Machine needs Node ${required}+ (active: ${process.versions.node}) — using ${found.version} at ${found.nodeBin}`
     )
     const r = spawnSync(found.nodeBin, [__filename, ...process.argv.slice(2)], {
       stdio: 'inherit'

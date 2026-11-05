@@ -60,6 +60,7 @@ export function cleanState(raw: unknown): RemoteState | null {
     .map((s: Record<string, unknown>) => ({ label: str(s.label), name: str(s.name), start: num(s.start), end: num(s.end) }))
   const sc = r.scene && typeof r.scene === 'object' ? r.scene : null
   const pad = r.pad && typeof r.pad === 'object' ? r.pad : {}
+  const metronome = r.metronome && typeof r.metronome === 'object' ? r.metronome : {}
   const key = int(pad.key, 0)
   const stems = (Array.isArray(r.stems) ? r.stems.slice(0, 12) : [])
     .filter((s: unknown) => s && typeof s === 'object')
@@ -83,7 +84,9 @@ export function cleanState(raw: unknown): RemoteState | null {
     clickOn: r.clickOn === true,
     loopOn: r.loopOn === true,
     stems,
-    pad: { playing: pad.playing === true, key: key >= 0 && key <= 11 ? key : 0, volume: typeof pad.volume === 'number' && Number.isFinite(pad.volume) ? Math.min(1, Math.max(0, pad.volume)) : 0.7 },
+    pad: { playing: pad.playing === true, key: key >= 0 && key <= 11 ? key : 0, volume: typeof pad.volume === 'number' && Number.isFinite(pad.volume) ? Math.min(1, Math.max(0, pad.volume)) : 0.7, pan: typeof pad.pan === 'number' && Number.isFinite(pad.pan) ? Math.min(1, Math.max(-1, pad.pan)) : 0 },
+    metronome: { playing: metronome.playing === true, bpm: Math.max(30, Math.min(300, int(metronome.bpm, 120))), pan: typeof metronome.pan === 'number' && Number.isFinite(metronome.pan) ? Math.min(1, Math.max(-1, metronome.pan)) : 0 },
+    outputSplit: r.outputSplit === true,
     scene: sc
       ? {
           id: str(sc.id),

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { SongThumb } from '../../lib/thumbs'
 import { PadButton } from '../PadButton'
 import { SmIcon } from '../SmIcon'
+import { MetronomeButton, OutputSplitButton } from '../QuickControls'
 
 export interface MenuItem {
   label: string
@@ -125,6 +126,8 @@ interface Props {
   exportItems: MenuItem[]
   menuItems: MenuItem[]
   outputSplit?: boolean
+  clickOn: boolean
+  onToggleOutputSplit: () => void
   scene?: {
     name: string
     index: number
@@ -271,15 +274,9 @@ export function StudioHeader(p: Props): React.ReactElement {
           </div>
         </Popover>
         <span title="Compasso" className="font-mono text-[14px] font-semibold text-sub px-1.5">{p.beatsPerBar ? `${p.beatsPerBar}/4` : '—'}</span>
+        <MetronomeButton className={pill} />
         <PadButton className={pill} />
-        {p.outputSplit && (
-          <span
-            className="font-mono text-[11px] font-bold text-warn border border-warn/50 bg-warn/10 px-2 py-1 rounded-md"
-            title="Saída L/R ligada: click e guia no L, música no R (desliga no menu ⋮ ou nas Configurações)"
-          >
-            L/R
-          </span>
-        )}
+        <OutputSplitButton on={!!p.outputSplit} onToggle={p.onToggleOutputSplit} className={pill} />
         <Dropdown items={p.exportItems} width="min-w-[260px]" className={pill}>
           <SmIcon name="download" size={16} /> Exportar <SmIcon name="cd" size={12} stroke={2.8} />
         </Dropdown>

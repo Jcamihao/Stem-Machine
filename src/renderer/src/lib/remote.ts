@@ -21,6 +21,8 @@ export interface RemotePlayer {
 
 export interface RemoteApp {
   pad: RemoteState['pad']
+  metronome: RemoteState['metronome']
+  outputSplit: boolean
   scene: RemoteState['scene']
 }
 
@@ -28,7 +30,12 @@ export interface RemoteApp {
 const POSITION_MS = 250
 
 let player: RemotePlayer | null = null
-let app: RemoteApp = { pad: { playing: false, key: 0, volume: 0.7 }, scene: null }
+let app: RemoteApp = {
+  pad: { playing: false, key: 0, volume: 0.7, pan: 0 },
+  metronome: { playing: false, bpm: 120, pan: 0 },
+  outputSplit: false,
+  scene: null
+}
 let lastFull = ''
 let lastDiscrete = ''
 let lastAt = -Infinity

@@ -4,6 +4,7 @@ import { isLocalId } from '../../../shared/local'
 import { SongThumb } from '../lib/thumbs'
 import { SmIcon } from './SmIcon'
 import { PadButton } from './PadButton'
+import { MetronomeButton, OutputSplitButton } from './QuickControls'
 
 type SortKey = 'date' | 'title' | 'bpm' | 'duration'
 
@@ -34,6 +35,8 @@ interface Props {
   onOpenMidi: () => void
   onOpenRemote: () => void
   onOpenSettings: () => void
+  outputSplit: boolean
+  onToggleOutputSplit: () => void
 }
 
 function RowMenu({ song, onOpen, onDelete }: { song: Song; onOpen: () => void; onDelete: () => void }): React.ReactElement {
@@ -103,7 +106,7 @@ function NavItem({ icon, label, onClick, trailing }: { icon: React.ComponentProp
   )
 }
 
-export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd, onOpenScenes, onOpenMidi, onOpenRemote, onOpenSettings }: Props): React.ReactElement {
+export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd, onOpenScenes, onOpenMidi, onOpenRemote, onOpenSettings, outputSplit, onToggleOutputSplit }: Props): React.ReactElement {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean }>({ key: 'date', asc: false })
   const [meta, setMeta] = useState<Record<string, { bpm: number | null; key: string | null; keyShift: string | null }>>({})
@@ -192,6 +195,8 @@ export function Library({ songs, pending, appVersion, onSelect, onDelete, onAdd,
           side
           className="no-drag flex items-center gap-3 h-10 px-3 rounded-[10px] border border-transparent text-[14px] font-bold text-[#c6c6cc] hover:bg-chip hover:text-fg w-full text-left"
         />
+        <MetronomeButton className="no-drag flex items-center gap-3 h-10 px-3 rounded-[10px] border border-transparent text-[14px] font-bold text-[#c6c6cc] hover:bg-chip hover:text-fg w-full text-left" />
+        <OutputSplitButton on={outputSplit} onToggle={onToggleOutputSplit} className="no-drag flex items-center h-10 px-3 rounded-[10px] border border-transparent text-[13px] font-bold text-[#c6c6cc] hover:bg-chip hover:text-fg w-full text-left" />
         <span className="flex-1" />
         <NavItem icon="gear" label="Configurações" onClick={onOpenSettings} />
         {appVersion && <div className="px-3 pt-2 font-mono text-[11px] font-medium text-dim">v{appVersion} · 100% local</div>}
