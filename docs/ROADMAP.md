@@ -1,6 +1,6 @@
 # Roadmap do Stem-Machine
 
-Atualizado em **2026-11-04**, versão em desenvolvimento: **0.11.0**.
+Atualizado em **2026-11-05**, versão em desenvolvimento: **0.12.0**.
 
 Esta é a fonte de verdade das pendências de produto. Estimativas são apenas referência: P (pequeno), M (médio) e G (grande).
 
@@ -17,6 +17,7 @@ Esta é a fonte de verdade das pendências de produto. Estimativas são apenas r
 - Adicionar músicas pelo celular: YouTube, upload de áudio até 500 MB, fila, progresso, erro e cancelamento.
 - Redesign das telas, tema escuro de estúdio (v2), e mixer por faixa no celular (volume, mudo e solo).
 - Controles rápidos no PC e no celular mesmo sem música aberta: metrônomo avulso com BPM manual, TAP tempo e pan; pad com pan; e PAN L/R.
+- Metrônomo e pad independentes da música, TAP medido no celular, botão "BPM da música" (acompanha a velocidade) e lado L / L+R / R de cada um no PAN L/R, no PC e no celular.
 
 ## Prioridade atual
 

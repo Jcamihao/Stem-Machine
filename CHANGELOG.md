@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 0.12.0 — 2026-11-05
+
+- **Metrônomo independente da música:** abrir ou trocar de música não para mais o metrônomo nem muda o BPM dele.
+- **Botão "BPM da música":** com uma música com batidas aberta, o metrônomo adota o BPM dela e acompanha mudanças de velocidade. Mexer no BPM ou no TAP desliga o acompanhamento.
+- **TAP no celular:** o tempo é medido no próprio celular (sem o atraso da rede) e só o BPM final vai ao PC.
+- **Lado do pad e do metrônomo no PAN L/R:** cada um escolhe L, L+R ou R; com o PAN L/R desligado vale o pan de cada um. No celular os sliders de pan ficam desativados enquanto o PAN L/R está ligado.
+- Testes novos: `scripts/audio-tests/` (roteamento de canais e lógica do follow/TAP) e casos de servidor para os comandos novos. Limite inferior do teste de envio lento corrigido (era instável).
+
 ## 0.11.0 — 2026-11-04
 
 - **Redesign das telas, tema escuro de estúdio (v2):** barra lateral na biblioteca, faixas de 80 px no player, painéis em pílula, fontes Manrope e JetBrains Mono locais, página do celular recolorida.
