@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { runCommand } from '../lib/commands'
 import { metronome, useMetronome } from '../lib/metronome'
+import { SideSelect } from './SideSelect'
+import { useOutputSplit } from '../lib/useOutputSplit'
 
 const panText = (pan: number): string => (pan === 0 ? 'Centro' : pan < 0 ? `${Math.round(-pan * 100)}% L` : `${Math.round(pan * 100)}% R`)
 
@@ -8,6 +10,7 @@ const panText = (pan: number): string => (pan === 0 ? 'Centro' : pan < 0 ? `${Ma
 // ou sozinho. O click sincronizado continua nos controles próprios da música.
 export function MetronomeButton({ className }: { className: string }): React.ReactElement {
   const s = useMetronome()
+  const split = useOutputSplit()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const on = s.playing
@@ -36,21 +39,39 @@ export function MetronomeButton({ className }: { className: string }): React.Rea
             </button>
           </div>
           <div className="flex items-center gap-2 mb-3">
-            <button onClick={() => metronome.setBpm(s.bpm - 1, true)} className="no-drag w-10 h-10 rounded-md bg-[#262626] text-xl hover:bg-[#333]">−</button>
+            <button onClick={() => metronome.setBpmManual(s.bpm - 1)} className="no-drag w-10 h-10 rounded-md bg-[#262626] text-xl hover:bg-[#333]">−</button>
             <div className="flex-1 h-10 rounded-md bg-[#262626] flex items-center justify-center text-[16px] font-bold tabular-nums">{s.bpm} BPM</div>
-            <button onClick={() => metronome.setBpm(s.bpm + 1, true)} className="no-drag w-10 h-10 rounded-md bg-[#262626] text-xl hover:bg-[#333]">+</button>
+            <button onClick={() => metronome.setBpmManual(s.bpm + 1)} className="no-drag w-10 h-10 rounded-md bg-[#262626] text-xl hover:bg-[#333]">+</button>
             <button onClick={() => metronome.tap()} className="no-drag h-10 px-3 rounded-md bg-amber-300 text-black text-[12px] font-extrabold active:scale-95">TAP</button>
           </div>
-          <p className="text-[11px] text-white/45 mb-4">Toque em TAP no pulso da música. Depois de dois toques, o BPM é calculado pela média.</p>
+          <button
+            onClick={() => runCommand({ type: 'metronomeFollow' })}
+            disabled={s.songBpm === null}
+            title={s.songBpm === null ? 'Abra uma música com batidas' : 'O metrônomo acompanha o BPM da música, inclusive se mudar a velocidade'}
+            className={`no-drag w-full h-9 mb-2 rounded-md text-[12px] font-bold disabled:opacity-35 ${s.follow ? 'bg-emerald-400 text-black' : 'bg-[#262626] hover:bg-[#333]'}`}
+          >
+            BPM da música{s.songBpm !== null ? ` · ${s.songBpm}` : ''}
+          </button>
+          <p className="text-[11px] text-white/45 mb-4">Toque em TAP no pulso da música. Depois de dois toques, o BPM é calculado pela média. Mexer no BPM ou no TAP desliga o acompanhamento.</p>
           <div className="grid grid-cols-[42px_1fr_54px] items-center gap-2">
             <span className="text-[12px] font-semibold text-white/55">Volume</span>
             <input type="range" min={0} max={2} step={0.01} value={s.volume} onChange={(e) => metronome.setVolume(parseFloat(e.target.value))} className="no-drag accent-white" />
             <span className="text-right text-[11px] font-semibold text-white/60">{Math.round(s.volume * 100)}%</span>
-            <span className="text-[12px] font-semibold text-white/55">Pan</span>
-            <input type="range" min={-1} max={1} step={0.01} value={s.pan} onChange={(e) => metronome.setPan(parseFloat(e.target.value))} className="no-drag accent-white" />
-            <span className="text-right text-[11px] font-semibold text-white/60">{panText(s.pan)}</span>
+            {split ? (
+              <>
+                <span className="text-[12px] font-semibold text-white/55">Lado</span>
+                <SideSelect value={s.side} onChange={(v) => runCommand({ type: 'metronomeSide', value: v })} />
+                <span />
+              </>
+            ) : (
+              <>
+                <span className="text-[12px] font-semibold text-white/55">Pan</span>
+                <input type="range" min={-1} max={1} step={0.01} value={s.pan} onChange={(e) => metronome.setPan(parseFloat(e.target.value))} className="no-drag accent-white" />
+                <span className="text-right text-[11px] font-semibold text-white/60">{panText(s.pan)}</span>
+              </>
+            )}
           </div>
-          <p className="text-[10px] text-white/35 mt-2">PAN L/R ligado força o metrônomo para L.</p>
+          <p className="text-[10px] text-white/35 mt-2">{split ? 'PAN L/R ligado: o pan é ignorado, vale o lado.' : 'Com o PAN L/R ligado, você escolhe o lado em vez do pan.'}</p>
         </div>
       )}
     </div>

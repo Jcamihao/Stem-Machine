@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { pad, usePad, PAD_NOTES, TRANSITION_SECONDS } from '../lib/pad'
 import type { PadTransition } from '../../../shared/types'
 import { SmIcon } from './SmIcon'
+import { SideSelect } from './SideSelect'
+import { useOutputSplit } from '../lib/useOutputSplit'
 
 // chip "Pad" (biblioteca e player) + painel: 12 notas, fonte (sintetizado ou
 // importado), transição, volume e brilho. O pad toca independente do player
@@ -20,6 +22,7 @@ export function PadButton({ className, side = false }: { className: string; side
 
   const sample = s.samples.find((p) => p.id === s.source) ?? null
   const label = 'text-[12px] font-bold text-sub w-24 shrink-0'
+  const split = useOutputSplit()
   const panText = s.pan === 0 ? 'Centro' : s.pan < 0 ? `${Math.round(-s.pan * 100)}% L` : `${Math.round(s.pan * 100)}% R`
   const seg = (on: boolean): string =>
     `no-drag flex-1 text-center py-1.5 rounded-full text-[12px] font-bold ${on ? 'bg-btn2 text-fg' : 'text-sub hover:text-fg'}`
@@ -179,20 +182,29 @@ export function PadButton({ className, side = false }: { className: string; side
             <span className={label}>Brilho</span>
             {slider(s.brightness, pad.setBrightness)}
           </div>
-          <div className="flex items-center gap-2.5">
-            <span className={label}>Pan</span>
-            <input
-              type="range"
-              min={-1}
-              max={1}
-              step={0.01}
-              value={s.pan}
-              onChange={(e) => pad.setPan(parseFloat(e.target.value))}
-              className="no-drag studio-volume flex-1"
-            />
-            <span className="font-mono text-[11px] font-semibold w-10 text-right">{panText}</span>
-          </div>
-          <p className="text-[10px] text-dim">PAN L/R ligado força o pad para R.</p>
+          {split ? (
+            <>
+              <div className="flex items-center gap-2.5">
+                <span className={label}>Lado</span>
+                <SideSelect value={s.side} onChange={pad.setSide.bind(pad)} />
+              </div>
+              <p className="text-[10px] text-dim">PAN L/R ligado: o pan é ignorado, vale o lado.</p>
+            </>
+          ) : (
+            <div className="flex items-center gap-2.5">
+              <span className={label}>Pan</span>
+              <input
+                type="range"
+                min={-1}
+                max={1}
+                step={0.01}
+                value={s.pan}
+                onChange={(e) => pad.setPan(parseFloat(e.target.value))}
+                className="no-drag studio-volume flex-1"
+              />
+              <span className="font-mono text-[11px] font-semibold w-10 text-right">{panText}</span>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -99,16 +99,30 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
 .tog{flex:1;min-height:64px;border-radius:16px;background:var(--card);font-size:20px;font-weight:800;color:var(--mut);border:1.5px solid #2a2a2f}
 .tog.on{background:rgba(255,91,31,.14);color:#ff9a6e;border-color:var(--acc)}
 .tog:active{background:#33333a}
-.metroctrl{display:flex;align-items:center;gap:8px;margin:12px 0}.metroctrl .lbl{flex:none;width:34px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
-.metroctrl button{flex:none;min-width:48px;height:44px;border-radius:10px;background:var(--card);border:1.5px solid #2a2a2f;font-size:24px;font-weight:800}.metroctrl button:active{background:#33333a}
-.metroctrl .bpmval{flex:1;min-width:0;text-align:center;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;font-family:ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace}
-.metroctrl .tap{padding:0 12px;min-width:62px;background:var(--amb);color:#1c1400;font-size:14px;letter-spacing:.04em}
+#global-controls .togs .tog{font-size:18px;padding:0 6px}
+.metroctrl{display:flex;align-items:center;gap:8px;margin:12px 0}
+.metroctrl button{flex:none;min-width:56px;height:56px;border-radius:12px;background:var(--card);border:1.5px solid #2a2a2f;font-size:26px;font-weight:800}.metroctrl button:active{background:#33333a}
+.metroctrl .bpmval{flex:1;min-width:0;text-align:center;font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;font-family:ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace}
+.metroctrl .tap{padding:0 12px;min-width:72px;background:var(--amb);color:#1c1400;font-size:16px;letter-spacing:.04em}
+.metroctrl .tap:active{background:#d99f26}
+/* acompanhar o BPM da música: largura toda, aceso quando ligado */
+.tog.follow{display:block;width:100%;min-height:56px;margin:0 0 12px;font-size:18px}
+/* lado de cada saída: só aparece com o PAN L/R ligado */
+.sides{margin:12px 0 4px;padding:10px;background:#17171a;border:1px solid #26262b;border-radius:14px}
+.sides .sidenote{margin:0 2px 2px;font-size:14px;line-height:1.3;color:var(--mut)}
+.sides .sr2{display:flex;align-items:center;gap:10px;margin-top:8px}
+.sides .lbl{flex:none;width:92px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#a1a1a9}
+.seg{flex:1;min-width:0;display:flex;gap:8px}
+.seg button{flex:1;min-width:0;min-height:56px;border-radius:14px;background:var(--card);border:1.5px solid #2a2a2f;font-size:20px;font-weight:800;color:var(--mut)}
+.seg button.on{background:rgba(255,91,31,.14);color:#ff9a6e;border-color:var(--acc)}
+.seg button:active{background:#33333a}
 
 .padhead{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 .padhead .sec-title{margin:0;flex:1}
 .padhead .tog{flex:none;min-width:160px;min-height:56px;font-size:18px}
 .padvol{display:flex;align-items:center;gap:12px;margin:0 0 12px}.padvol .lbl{flex:none;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#a1a1a9}.padvol .val{flex:none;min-width:48px;text-align:right;font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
-.padvol input[type=range]{flex:1;min-width:0;height:48px;margin:0;background:transparent;-webkit-appearance:none;appearance:none;touch-action:none}
+.padvol.dim{opacity:.35}
+.padvol input[type=range]{flex:1;min-width:0;height:56px;margin:0;background:transparent;-webkit-appearance:none;appearance:none;touch-action:none}
 .padvol input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:999px;background:#26262b}
 .padvol input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:36px;height:36px;border-radius:50%;background:#8bd450;border:0;margin-top:-13px}
 .padvol input[type=range]::-moz-range-track{height:8px;border-radius:999px;background:#26262b}
@@ -324,15 +338,21 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
             <button type="button" class="tog" id="song-click" hidden>Click da música</button>
             <button type="button" class="tog" id="output-split">PAN L/R</button>
           </div>
-          <div class="metroctrl"><span class="lbl">BPM</span><button type="button" id="metro-bpm-minus" aria-label="Diminuir BPM">−</button><span class="bpmval" id="metro-bpm">120 BPM</span><button type="button" id="metro-bpm-plus" aria-label="Aumentar BPM">+</button><button type="button" class="tap" id="metro-tap">TAP</button></div>
-          <div class="padvol"><span class="lbl">Pan</span><input type="range" id="metro-pan" min="-100" max="100" step="1" value="0" aria-label="Pan do metrônomo"><span class="val" id="metro-pan-v">Centro</span></div>
+          <div class="sides" id="sides" hidden>
+            <div class="sidenote">PAN L/R ligado: escolha o lado de cada um.</div>
+            <div class="sr2"><span class="lbl">Metrônomo</span><div class="seg" id="seg-metro" role="group" aria-label="Lado do metrônomo"></div></div>
+            <div class="sr2"><span class="lbl">Pad</span><div class="seg" id="seg-pad" role="group" aria-label="Lado do pad"></div></div>
+          </div>
+          <div class="metroctrl"><button type="button" id="metro-bpm-minus" aria-label="Diminuir BPM">−</button><span class="bpmval" id="metro-bpm">120 BPM</span><button type="button" id="metro-bpm-plus" aria-label="Aumentar BPM">+</button><button type="button" class="tap" id="metro-tap">TAP</button></div>
+          <button type="button" class="tog follow" id="metro-follow" disabled title="Abra uma música com batidas">BPM da música</button>
+          <div class="padvol" id="metro-pan-row"><span class="lbl">Pan</span><input type="range" id="metro-pan" min="-100" max="100" step="1" value="0" aria-label="Pan do metrônomo"><span class="val" id="metro-pan-v">Centro</span></div>
           <div class="padbox">
             <div class="padhead">
               <div class="sec-title">Pad</div>
               <button type="button" class="tog" id="padtog">Pad desligado</button>
             </div>
             <div class="padvol"><span class="lbl">Volume</span><input type="range" id="padvol" min="0" max="100" step="1" value="70" aria-label="Volume do pad"><span class="val" id="padvolv">70%</span></div>
-            <div class="padvol"><span class="lbl">Pan</span><input type="range" id="pad-pan" min="-100" max="100" step="1" value="0" aria-label="Pan do pad"><span class="val" id="pad-pan-v">Centro</span></div>
+            <div class="padvol" id="pad-pan-row"><span class="lbl">Pan</span><input type="range" id="pad-pan" min="-100" max="100" step="1" value="0" aria-label="Pan do pad"><span class="val" id="pad-pan-v">Centro</span></div>
             <div class="notes" id="notes"></div>
           </div>
         </div>
@@ -448,6 +468,9 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
   var openedScene = null; // id da cena aberta na aba Cenas
   var padVolDrag = false, padVolTimer = null, padVolLast = 0;
   var metroPanDrag = false, padPanDrag = false;
+  var tapTimes = [];      // instantes dos últimos toques do TAP (medidos aqui, sem o jitter da rede)
+  var tapLastSent = null; // último BPM de TAP já enviado (não repete em sequência)
+  var tapBpm = 0, tapUntil = 0, tapTimer = null; // BPM do TAP mostrado na hora, por ~1,5 s
   var partsSig = '';
   var stemsSig = '';
   var stemDrag = {}; // id -> true enquanto o dedo está no slider daquela faixa
@@ -1002,10 +1025,23 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
     $('song-click').hidden = !has;
     $('song-click').className = 'tog' + (has && s.clickOn ? ' on' : '');
     $('song-click').textContent = has && s.clickOn ? 'Click ligado' : 'Click da música';
-    $('metro-bpm').textContent = metro.bpm + ' BPM';
+    $('metro-bpm').textContent = (tapActive() ? tapBpm : metro.bpm) + ' BPM';
+    var songBpm = typeof metro.songBpm === 'number' ? metro.songBpm : null;
+    var fw = $('metro-follow');
+    fw.disabled = songBpm === null;
+    fw.className = 'tog follow' + (metro.follow && songBpm !== null ? ' on' : '');
+    setText(fw, songBpm === null ? 'BPM da música' : 'BPM da música · ' + songBpm);
     var mp = typeof metro.pan === 'number' ? Math.round(metro.pan * 100) : 0;
     if (!metroPanDrag) { $('metro-pan').value = String(mp); $('metro-pan-v').textContent = panLabel(mp); }
-    $('output-split').className = 'tog' + (s && s.outputSplit ? ' on' : '');
+    var split = !!(s && s.outputSplit);
+    $('output-split').className = 'tog' + (split ? ' on' : '');
+    // com o PAN L/R ligado o app ignora os sliders de pan e vale o lado de cada saída
+    $('sides').hidden = !split;
+    $('metro-pan-row').className = 'padvol' + (split ? ' dim' : '');
+    $('pad-pan-row').className = 'padvol' + (split ? ' dim' : '');
+    $('metro-pan').disabled = split;
+    $('pad-pan').disabled = split;
+    paintSeg('seg-metro', metro.side);
     $('output-split').textContent = s && s.outputSplit ? 'PAN L/R ligado' : 'PAN L/R';
 
     var pd = s && s.pad ? s.pad : { playing: false, key: 0, volume: 0.7, pan: 0 };
@@ -1013,6 +1049,7 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
     if (!padVolDrag) { $('padvol').value = String(pv); $('padvolv').textContent = pv + '%'; }
     var pp = typeof pd.pan === 'number' ? Math.round(pd.pan * 100) : 0;
     if (!padPanDrag) { $('pad-pan').value = String(pp); $('pad-pan-v').textContent = panLabel(pp); }
+    paintSeg('seg-pad', pd.side);
     $('padtog').className = 'tog' + (pd.playing ? ' on' : '');
     $('padtog').textContent = pd.playing ? 'Pad ligado' : 'Pad desligado';
     var ns = $('notes').children;
@@ -1525,9 +1562,51 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
   /* ---------- ligações ---------- */
   function bind(id, fn) { $(id).addEventListener('click', fn); }
   function panLabel(value) { return value === 0 ? 'Centro' : Math.abs(value) + '% ' + (value < 0 ? 'L' : 'R'); }
+  // o BPM do TAP vale ~1,5 s; o limite alto protege se o relógio do aparelho pular
+  function tapActive() { var d = tapUntil - Date.now(); return d > 0 && d <= 1600; }
   function currentMetroBpm() {
+    if (tapActive()) return tapBpm;
     var m = state && state.metronome;
     return m && typeof m.bpm === 'number' ? m.bpm : 120;
+  }
+  function paintSeg(id, side) {
+    var bs = $(id).children;
+    for (var i = 0; i < bs.length; i++) {
+      var on = bs[i].getAttribute('data-side') === side;
+      bs[i].className = on ? 'on' : '';
+      bs[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+  function buildSeg(id, command) {
+    var sides = [['left', 'L'], ['both', 'L+R'], ['right', 'R']];
+    for (var i = 0; i < sides.length; i++) {
+      (function (v, label) {
+        var b = h('button', null, label);
+        b.type = 'button';
+        b.setAttribute('data-side', v);
+        b.setAttribute('aria-pressed', 'false');
+        b.addEventListener('click', function () { send({ type: command, value: v }, b); });
+        $(id).appendChild(b);
+      })(sides[i][0], sides[i][1]);
+    }
+  }
+  // TAP: o tempo é medido aqui (até 5 toques; pausa > 2 s recomeça) e só o BPM final vai ao PC
+  function metroTap() {
+    var el = $('metro-tap');
+    var now = Date.now();
+    if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > 2000) { tapTimes = []; tapLastSent = null; }
+    tapTimes.push(now);
+    if (tapTimes.length > 5) tapTimes.shift();
+    if (tapTimes.length < 2) { vibrate(); flash(el); return; }
+    var avg = (tapTimes[tapTimes.length - 1] - tapTimes[0]) / (tapTimes.length - 1);
+    var bpm = Math.max(30, Math.min(300, Math.round(60000 / Math.max(1, avg))));
+    tapBpm = bpm; tapUntil = now + 1500;
+    $('metro-bpm').textContent = bpm + ' BPM';
+    if (tapTimer) clearTimeout(tapTimer);
+    tapTimer = setTimeout(function () { tapTimer = null; render(); }, 1550);
+    if (bpm === tapLastSent) { vibrate(); flash(el); return; }
+    tapLastSent = bpm;
+    send({ type: 'metronomeBpm', value: bpm }, el);
   }
   function init() {
     buildKeys();
@@ -1550,7 +1629,10 @@ input{font:inherit;-webkit-appearance:none;appearance:none}
     bind('output-split', function () { send({ type: 'outputSplit' }, $('output-split')); });
     bind('metro-bpm-minus', function () { send({ type: 'metronomeBpm', value: Math.max(30, currentMetroBpm() - 1) }, $('metro-bpm-minus')); });
     bind('metro-bpm-plus', function () { send({ type: 'metronomeBpm', value: Math.min(300, currentMetroBpm() + 1) }, $('metro-bpm-plus')); });
-    bind('metro-tap', function () { send({ type: 'metronomeTap' }, $('metro-tap')); });
+    bind('metro-tap', metroTap);
+    bind('metro-follow', function () { send({ type: 'metronomeFollow' }, $('metro-follow')); });
+    buildSeg('seg-metro', 'metronomeSide');
+    buildSeg('seg-pad', 'padSide');
     bind('loop', function () { send({ type: 'loop' }, $('loop')); });
     bind('padtog', function () { send({ type: 'pad' }, $('padtog')); });
     // volume do pad: manda enquanto arrasta (no máximo 10 por segundo, sem vibrar) e o valor final ao soltar

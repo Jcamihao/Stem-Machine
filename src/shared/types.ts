@@ -1,4 +1,4 @@
-import type { RemoteState, RemoteStatus, RemoteCommand } from './remote'
+import type { RemoteState, RemoteStatus, RemoteCommand, OutputSide } from './remote'
 // 'click' e 'guide' não vêm da separação: são gerados no player (batidas e seções)
 export type StemId = 'vocals' | 'drums' | 'bass' | 'other' | 'piano' | 'guitar' | 'click' | 'guide'
 
@@ -47,11 +47,13 @@ export interface AppSettings {
   padKey: number
   padVolume: number // 0..1
   padPan: number // -1 = L, 0 = centro, 1 = R; ignorado pela saída L/R
+  padSide: OutputSide // lado do pad na saída L/R (padrão: right, com a música)
   padBrightness: number // 0..1 (filtro: escuro -> aberto)
   padTransition: PadTransition
   // metrônomo avulso: BPM e pan persistidos para usar fora de uma música
   metronomeBpm: number
   metronomePan: number
+  metronomeSide: OutputSide // lado do metrônomo na saída L/R (padrão: left, com o click)
   metronomeVolume: number // 0 a 2, 1 = volume original do metrônomo
   // clique numa parte: 'bar' espera a virada do compasso (tocando), 'now' salta na hora
   sectionSwitch: 'bar' | 'now'
@@ -109,10 +111,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   padKey: 0,
   padVolume: 0.7,
   padPan: 0,
+  padSide: 'right',
   padBrightness: 0.75,
   padTransition: 'slow',
   metronomeBpm: 120,
   metronomePan: 0,
+  metronomeSide: 'left',
   metronomeVolume: 1,
   sectionSwitch: 'bar',
   sceneAutoAdvance: false,

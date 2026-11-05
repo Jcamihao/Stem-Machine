@@ -120,12 +120,6 @@ export default function App(): React.ReactElement {
     }
   }, [settings])
 
-  // O metrônomo avulso só existe entre músicas. Ao escolher uma, o click do
-  // player (sincronizado às batidas detectadas) assume o controle.
-  useEffect(() => {
-    if (activeId) metronome.stop()
-  }, [activeId])
-
   // MIDI escuta em qualquer tela (o mapa vem das configurações)
   useEffect(() => {
     void midi.start()
@@ -298,7 +292,15 @@ export default function App(): React.ReactElement {
           return true
         }
         if (c.type === 'metronomeBpm') {
-          metronome.setBpm(c.value, true)
+          metronome.setBpmManual(c.value)
+          return true
+        }
+        if (c.type === 'metronomeFollow') {
+          metronome.toggleFollow()
+          return true
+        }
+        if (c.type === 'metronomeSide') {
+          metronome.setSide(c.value)
           return true
         }
         if (c.type === 'metronomeTap') {
@@ -337,8 +339,8 @@ export default function App(): React.ReactElement {
   useEffect(() => remote.startRemote(), [])
   useEffect(() => {
     const publishPad = (): void => {
-      const { playing, key, volume, pan } = pad.getState()
-      remote.setApp({ pad: { playing, key, volume, pan } })
+      const { playing, key, volume, pan, side } = pad.getState()
+      remote.setApp({ pad: { playing, key, volume, pan, side } })
     }
     publishPad()
     return pad.subscribe(publishPad)

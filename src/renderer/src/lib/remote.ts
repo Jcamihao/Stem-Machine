@@ -31,8 +31,8 @@ const POSITION_MS = 250
 
 let player: RemotePlayer | null = null
 let app: RemoteApp = {
-  pad: { playing: false, key: 0, volume: 0.7, pan: 0 },
-  metronome: { playing: false, bpm: 120, pan: 0 },
+  pad: { playing: false, key: 0, volume: 0.7, pan: 0, side: 'right' },
+  metronome: { playing: false, bpm: 120, pan: 0, side: 'left', follow: false, songBpm: null },
   outputSplit: false,
   scene: null
 }

@@ -974,10 +974,12 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
       })),
     [stemMeta, vols, mutes, solos]
   )
-  // Se o músico sair da faixa, o metrônomo avulso continua no último andamento usado.
+  // O metrônomo avulso é independente: a música só informa o BPM dela (botão "BPM da música").
+  // Ao sair da música (ou sem batidas) o botão perde o alvo e o acompanhamento desliga.
   useEffect(() => {
-    if (remoteBpm !== null) metronome.setBpm(remoteBpm)
+    metronome.setSongBpm(remoteBpm)
   }, [remoteBpm])
+  useEffect(() => () => metronome.setSongBpm(null), [])
   useEffect(() => {
     remote.setPlayer({
       song: { id: song.videoId, title: song.title },

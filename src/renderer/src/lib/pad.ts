@@ -6,6 +6,7 @@
 // Troca de tom/fonte = crossfade de potência constante entre duas vozes.
 import { useSyncExternalStore } from 'react'
 import type { AppSettings, PadSample, PadTransition } from '../../../shared/types'
+import { sideGains, type OutputSide } from '../../../shared/remote'
 import { keyFromAudio, keyFromName } from './padKey'
 import { registerCommandHandler } from './commands'
 
@@ -25,7 +26,8 @@ export interface PadState {
   key: number
   source: string // 'synth' ou id do pad importado
   volume: number
-  pan: number // -1 L, 0 centro, 1 R; saída L/R força R
+  pan: number // -1 L, 0 centro, 1 R; ignorado na saída L/R (vale o lado)
+  side: OutputSide // lado na saída L/R
   brightness: number
   transition: PadTransition
   samples: PadSample[]
@@ -225,6 +227,7 @@ class PadEngine {
     source: 'synth',
     volume: 0.7,
     pan: 0,
+    side: 'right',
     brightness: 0.75,
     transition: 'slow',
     samples: [],
@@ -242,6 +245,8 @@ class PadEngine {
   private panner: StereoPannerNode | null = null
   private normalOut: GainNode | null = null
   private splitOut: GainNode | null = null
+  private leftGain: GainNode | null = null
+  private rightGain: GainNode | null = null
   private split = false
   private voice: Voice | null = null
   private buffers = new Map<string, LoadedSample>()
@@ -271,6 +276,7 @@ class PadEngine {
         padKey: s.key,
         padVolume: s.volume,
         padPan: s.pan,
+        padSide: s.side,
         padBrightness: s.brightness,
         padTransition: s.transition
       })
@@ -288,6 +294,7 @@ class PadEngine {
       source: settings.padSource,
       volume: settings.padVolume,
       pan: settings.padPan,
+      side: settings.padSide,
       brightness: settings.padBrightness,
       transition: settings.padTransition
     })
@@ -337,7 +344,16 @@ class PadEngine {
     mono.channelInterpretation = 'speakers'
     this.volume.connect(mono)
     const merger = ctx.createChannelMerger(2)
-    mono.connect(merger, 0, 1)
+    // no PAN L/R o lado (L, L+R ou R) vale no lugar do pan; o padrão é o R, com a música
+    this.leftGain = ctx.createGain()
+    this.rightGain = ctx.createGain()
+    mono.connect(this.leftGain)
+    mono.connect(this.rightGain)
+    this.leftGain.connect(merger, 0, 0)
+    this.rightGain.connect(merger, 0, 1)
+    const [l, r] = sideGains(this.state.side)
+    this.leftGain.gain.value = l
+    this.rightGain.gain.value = r
     merger.connect(this.splitOut)
     this.normalOut.connect(ctx.destination)
     this.splitOut.connect(ctx.destination)
@@ -472,6 +488,16 @@ class PadEngine {
     if (this.ctx && this.panner) this.panner.pan.setTargetAtTime(v, this.ctx.currentTime, 0.05)
   }
 
+  setSide(side: OutputSide): void {
+    if (side === this.state.side) return
+    this.set({ side }, true)
+    if (this.ctx && this.leftGain && this.rightGain) {
+      const [l, r] = sideGains(side)
+      this.leftGain.gain.setTargetAtTime(l, this.ctx.currentTime, 0.02)
+      this.rightGain.gain.setTargetAtTime(r, this.ctx.currentTime, 0.02)
+    }
+  }
+
   setBrightness(b: number): void {
     this.set({ brightness: b }, true)
     if (this.ctx && this.filter) this.filter.frequency.setTargetAtTime(brightnessHz(b), this.ctx.currentTime, 0.08)
@@ -548,6 +574,10 @@ registerCommandHandler((c) => {
   }
   if (c.type === 'padPan') {
     pad.setPan(c.value)
+    return true
+  }
+  if (c.type === 'padSide') {
+    pad.setSide(c.value)
     return true
   }
   if (c.type !== 'pad') return false

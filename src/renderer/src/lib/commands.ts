@@ -1,3 +1,4 @@
+import type { OutputSide } from '../../../shared/remote'
 // canal único de comandos: teclado, (depois) celular e MIDI chamam o mesmo caminho.
 // Quem sabe executar (o player aberto, o pad) registra um handler; o primeiro que
 // devolver true "pegou" o comando. Handlers mais novos têm prioridade
@@ -11,6 +12,8 @@ export type Command =
   | { type: 'semitones'; delta: number }
   | { type: 'bpm'; delta: number }
   | { type: 'click' }
+  | { type: 'metronomeFollow' } // o metrônomo acompanha (ou deixa de acompanhar) o BPM da música aberta
+  | { type: 'metronomeSide' | 'padSide'; value: OutputSide } // lado no PAN L/R
   | { type: 'metronomeToggle' } // metrônomo avulso, inclusive com música aberta
   | { type: 'loop' } // liga/desliga o loop A–B
   | { type: 'goToNext'; label: string } // próxima parte com esse nome (ex.: 'chorus') depois da posição atual

@@ -4,7 +4,7 @@ import { BrowserWindow } from 'electron'
 import { userDataDir } from './env'
 import { DEFAULT_SETTINGS, type AppSettings } from '../shared/types'
 import { cleanMidiMap } from '../shared/midi'
-import { PIN_RE } from '../shared/remote'
+import { OUTPUT_SIDES, PIN_RE, type OutputSide } from '../shared/remote'
 
 function settingsFile(): string {
   return join(userDataDir(), 'settings.json')
@@ -21,6 +21,10 @@ export function loadSettings(): AppSettings {
 
 function clamp01(v: unknown, fallback: number): number {
   return typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback
+}
+
+function side(v: unknown, fallback: OutputSide): OutputSide {
+  return OUTPUT_SIDES.includes(v as OutputSide) ? (v as OutputSide) : fallback
 }
 
 function clampPan(v: unknown, fallback: number): number {
@@ -49,10 +53,12 @@ export function saveSettings(patch: Partial<AppSettings>): AppSettings {
     padKey: Number.isInteger(merged.padKey) ? (((merged.padKey % 12) + 12) % 12) : 0,
     padVolume: clamp01(merged.padVolume, DEFAULT_SETTINGS.padVolume),
     padPan: clampPan(merged.padPan, DEFAULT_SETTINGS.padPan),
+    padSide: side(merged.padSide, DEFAULT_SETTINGS.padSide),
     padBrightness: clamp01(merged.padBrightness, DEFAULT_SETTINGS.padBrightness),
     padTransition: merged.padTransition === 'fast' ? 'fast' : 'slow',
     metronomeBpm: clampBpm(merged.metronomeBpm, DEFAULT_SETTINGS.metronomeBpm),
     metronomePan: clampPan(merged.metronomePan, DEFAULT_SETTINGS.metronomePan),
+    metronomeSide: side(merged.metronomeSide, DEFAULT_SETTINGS.metronomeSide),
     metronomeVolume: clampMetronomeVolume(merged.metronomeVolume, DEFAULT_SETTINGS.metronomeVolume),
     sectionSwitch: merged.sectionSwitch === 'now' ? 'now' : 'bar',
     sceneAutoAdvance: !!merged.sceneAutoAdvance,

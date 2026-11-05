@@ -4,6 +4,15 @@
 import { parseVideoId } from './url'
 
 export const REMOTE_PORT = 8787
+
+// no PAN L/R: em qual lado da saída o metrônomo ou o pad toca (L+R = os dois canais)
+export type OutputSide = 'left' | 'both' | 'right'
+export const OUTPUT_SIDES: OutputSide[] = ['left', 'both', 'right']
+
+// ganho do canal esquerdo e do direito para cada lado (a fonte é mono no PAN L/R)
+export function sideGains(side: OutputSide): [number, number] {
+  return side === 'left' ? [1, 0] : side === 'right' ? [0, 1] : [1, 1]
+}
 // arquivo enviado pelo celular: limite de tamanho (o PC grava num temporário e separa)
 export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024
 
@@ -42,9 +51,11 @@ export interface RemoteState {
   clickOn: boolean
   loopOn: boolean
   stems: RemoteStem[] // faixas da música aberta (vazio sem música)
-  pad: { playing: boolean; key: number; volume: number; pan: number } // pan: -1 L ... 1 R
+  pad: { playing: boolean; key: number; volume: number; pan: number; side: OutputSide } // pan: -1 L ... 1 R; side só vale com o PAN L/R ligado
   // fora de uma música, o metrônomo avulso usa o último BPM conhecido (120 inicial)
-  metronome: { playing: boolean; bpm: number; pan: number }
+  // metrônomo avulso: independe da música (não para ao abrir ou trocar de música).
+  // follow: acompanha o BPM da música (songBpm); mexer no BPM ou no TAP desliga
+  metronome: { playing: boolean; bpm: number; pan: number; side: OutputSide; follow: boolean; songBpm: number | null }
   outputSplit: boolean // click/guia no L, música no R
   scene: { id: string; name: string; index: number; total: number; hasPrev: boolean; hasNext: boolean } | null
 }
@@ -56,7 +67,7 @@ export interface RemoteLibrary {
 
 // comandos que o celular pode mandar (subconjunto de lib/commands do renderer)
 export type RemoteCommand =
-  | { type: 'toggle' | 'play' | 'pause' | 'click' | 'metronomeToggle' | 'loop' | 'nextSong' | 'prevSong' }
+  | { type: 'toggle' | 'play' | 'pause' | 'click' | 'metronomeToggle' | 'metronomeFollow' | 'loop' | 'nextSong' | 'prevSong' }
   | { type: 'goToSection'; index: number }
   | { type: 'semitones' | 'bpm'; delta: -1 | 1 }
   | { type: 'pad'; key?: number } // sem key: liga/desliga; com key (0..11): toca nessa nota
@@ -67,11 +78,12 @@ export type RemoteCommand =
   | { type: 'metronomeBpm'; value: number }
   | { type: 'metronomeTap' }
   | { type: 'metronomePan'; value: number }
+  | { type: 'metronomeSide' | 'padSide'; value: OutputSide }
   | { type: 'outputSplit' }
   | { type: 'openSong'; id: string }
   | { type: 'openScene'; id: string }
 
-const SIMPLE = new Set(['toggle', 'play', 'pause', 'click', 'metronomeToggle', 'loop', 'nextSong', 'prevSong', 'outputSplit', 'metronomeTap'])
+const SIMPLE = new Set(['toggle', 'play', 'pause', 'click', 'metronomeToggle', 'loop', 'nextSong', 'prevSong', 'outputSplit', 'metronomeTap', 'metronomeFollow'])
 const isInt = (v: unknown, lo: number, hi: number): v is number => typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi
 const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 200
 
@@ -99,6 +111,7 @@ export function parseRemoteCommand(raw: unknown): RemoteCommand | null {
   if (type === 'padPan' || type === 'metronomePan') {
     return typeof r.value === 'number' && Number.isFinite(r.value) ? { type, value: Math.round(Math.min(1, Math.max(-1, r.value)) * 100) / 100 } : null
   }
+  if (type === 'metronomeSide' || type === 'padSide') return OUTPUT_SIDES.includes(r.value as OutputSide) ? { type, value: r.value as OutputSide } : null
   if (type === 'metronomeBpm') return isInt(r.value, 30, 300) ? { type, value: r.value } : null
   if (type === 'openSong' || type === 'openScene') return isId(r.id) ? { type, id: r.id } : null
   return null

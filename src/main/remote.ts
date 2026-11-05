@@ -13,7 +13,7 @@ import { RemoteServer, pruneUploads, removeUploadFolder } from './remoteServer'
 import { RemoteJobs } from './remoteJobs'
 import { localSongId } from '../shared/local'
 import { parseVideoId } from '../shared/url'
-import { PIN_RE, REMOTE_PORT, REMOTE_STEM_IDS, type RemoteLibrary, type RemoteState, type RemoteStatus } from '../shared/remote'
+import { OUTPUT_SIDES, PIN_RE, REMOTE_PORT, REMOTE_STEM_IDS, type RemoteLibrary, type RemoteState, type RemoteStatus } from '../shared/remote'
 
 export const REMOTE_PAGE: string = pageHtml
 
@@ -84,8 +84,8 @@ export function cleanState(raw: unknown): RemoteState | null {
     clickOn: r.clickOn === true,
     loopOn: r.loopOn === true,
     stems,
-    pad: { playing: pad.playing === true, key: key >= 0 && key <= 11 ? key : 0, volume: typeof pad.volume === 'number' && Number.isFinite(pad.volume) ? Math.min(1, Math.max(0, pad.volume)) : 0.7, pan: typeof pad.pan === 'number' && Number.isFinite(pad.pan) ? Math.min(1, Math.max(-1, pad.pan)) : 0 },
-    metronome: { playing: metronome.playing === true, bpm: Math.max(30, Math.min(300, int(metronome.bpm, 120))), pan: typeof metronome.pan === 'number' && Number.isFinite(metronome.pan) ? Math.min(1, Math.max(-1, metronome.pan)) : 0 },
+    pad: { playing: pad.playing === true, key: key >= 0 && key <= 11 ? key : 0, volume: typeof pad.volume === 'number' && Number.isFinite(pad.volume) ? Math.min(1, Math.max(0, pad.volume)) : 0.7, pan: typeof pad.pan === 'number' && Number.isFinite(pad.pan) ? Math.min(1, Math.max(-1, pad.pan)) : 0, side: OUTPUT_SIDES.includes(pad.side) ? pad.side : 'right' },
+    metronome: { playing: metronome.playing === true, bpm: Math.max(30, Math.min(300, int(metronome.bpm, 120))), pan: typeof metronome.pan === 'number' && Number.isFinite(metronome.pan) ? Math.min(1, Math.max(-1, metronome.pan)) : 0, side: OUTPUT_SIDES.includes(metronome.side) ? metronome.side : 'left', follow: metronome.follow === true, songBpm: typeof metronome.songBpm === 'number' && Number.isFinite(metronome.songBpm) ? Math.round(metronome.songBpm) : null },
     outputSplit: r.outputSplit === true,
     scene: sc
       ? {
