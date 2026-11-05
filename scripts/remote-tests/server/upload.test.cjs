@@ -122,7 +122,7 @@ test('nomes hostis: nunca saem da pasta de envios (../, \\, absoluto, drive, NUL
   await c.stop()
 })
 
-test('30 MB enviados DEVAGAR (> 12 s) não são derrubados pelo timeout de 10 s das rotas JSON', async () => {
+test('30 MB enviados DEVAGAR (> 10,5 s) não são derrubados pelo timeout de 10 s das rotas JSON', async () => {
   const c = await boot()
   const t = await c.login()
   const total = 30 * MB
@@ -130,7 +130,7 @@ test('30 MB enviados DEVAGAR (> 12 s) não são derrubados pelo timeout de 10 s 
   const t0 = Date.now()
   const r = await upload(c.port, t, { name: 'devagar.mp3', total, chunk, gap: 220 })
   const dt = Date.now() - t0
-  assert.ok(dt > 12000, 'terminou rápido demais: ' + dt)
+  assert.ok(dt > 10500, 'terminou antes de passar o timeout de 10 s (não prova nada): ' + dt)
   assert.equal(r.status, 202, 'status ' + (r.status ?? r.error) + ' após ' + dt + ' ms')
   assert.equal(c.calls.uploads[0].size, total)
   console.log('  30 MB em', dt, 'ms, size no disco', c.calls.uploads[0].size)

@@ -32,6 +32,22 @@ test('funções puras: cleanState, buildLibrary, lanUrls, generatePin', () => {
   assert.match(glue.generatePin(), /^\d{6}$/)
 })
 
+test('cleanState: lado, follow e BPM da música do pad/metrônomo passam; lixo é limpo', () => {
+  const st = glue.cleanState({
+    pad: { playing: true, key: 2, volume: 0.5, pan: 0, side: 'right', extra: 'x' },
+    metronome: { playing: true, bpm: 120, pan: 0, side: 'left', follow: true, songBpm: 72.6, extra: 'x' }
+  })
+  assert.equal(st.pad.side, 'right')
+  assert.equal(st.metronome.side, 'left')
+  assert.equal(st.metronome.follow, true)
+  assert.equal(st.metronome.songBpm, 73)
+  assert.equal(JSON.stringify(st).includes('extra'), false)
+  const sem = glue.cleanState({ metronome: { playing: false, bpm: 100, pan: 0, side: 'meio', follow: 'sim', songBpm: null } })
+  assert.equal(sem.metronome.songBpm, null)
+  assert.equal(sem.metronome.follow, false)
+  assert.notEqual(sem.metronome.side, 'meio')
+})
+
 test('initRemote de ponta a ponta: add-link e upload passam pelo pipeline real e limpam o temporário', async (t) => {
   if (!(await portFree())) return t.skip('porta 8787 ocupada nesta máquina')
   const uploads = path.join(userData, 'uploads')

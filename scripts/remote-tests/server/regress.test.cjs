@@ -101,6 +101,25 @@ test('/api/cmd: válido 200 chega no onCommand; inválido 400; 4097 bytes 413; s
   await c.stop()
 })
 
+test('/api/cmd: lado do pad/metrônomo e "BPM da música" (metronomeSide, padSide, metronomeFollow)', async () => {
+  const c = await boot()
+  const t = await c.login()
+  const post = (b) => authed(c.port, t, 'POST', '/api/cmd', b)
+  for (const type of ['metronomeSide', 'padSide']) {
+    for (const value of ['left', 'both', 'right']) assert.deepEqual((await post({ type, value })).json, { ok: true })
+    for (const bad of ['LEFT', 'l', '', 1, null, undefined, ['left']]) assert.deepEqual((await post({ type, value: bad })).json, { error: 'command' }, type + ' ' + String(bad))
+  }
+  assert.deepEqual((await post({ type: 'metronomeFollow', lixo: 1 })).json, { ok: true })
+  assert.deepEqual((await post({ type: 'metronomeBpm', value: 90 })).json, { ok: true })
+  assert.deepEqual((await post({ type: 'metronomeBpm', value: 29 })).json, { error: 'command' })
+  assert.deepEqual(c.calls.cmds, [
+    ...['metronomeSide', 'padSide'].flatMap((type) => ['left', 'both', 'right'].map((value) => ({ type, value }))),
+    { type: 'metronomeFollow' },
+    { type: 'metronomeBpm', value: 90 }
+  ])
+  await c.stop()
+})
+
 test('/api/cmd: 31º pedido no mesmo segundo é 429 com Retry-After', async () => {
   const c = await boot()
   const t = await c.login()

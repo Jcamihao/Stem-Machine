@@ -467,6 +467,164 @@ async function main() {
     await post('/__cfg', { delayMs: 60 })
   }
 
+  // ================= 7b. metrônomo: BPM da música, TAP no celular, lado no PAN L/R =================
+  await post('/__cfg', { delayMs: 0, respondMs: 0 })
+  await post('/__jobs', [])
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForSelector('#app:not([hidden])')
+  await goTab('play')
+  const mkState = (m, o) => Object.assign({}, song, { outputSplit: false }, {
+    metronome: Object.assign({ playing: false, bpm: 90, pan: 0, side: 'both', follow: false, songBpm: null }, m || {}),
+    pad: Object.assign({ playing: false, key: 0, volume: 0.7, pan: 0, side: 'both' }, (o && o.pad) || {})
+  }, o && o.top ? o.top : {})
+  const cmdsOf = async (t) => (await getLog()).cmds.filter((c) => c.type === t)
+  const rectH = (sel) => page.$eval(sel, (e) => Math.round(e.getBoundingClientRect().height))
+
+  // ---- botão "BPM da música" ----
+  await post('/__state', mkState({ songBpm: null })); await sleep(150)
+  T('Follow: sem batidas fica desabilitado', await page.$eval('#metro-follow', (e) => e.disabled))
+  T('Follow: sem batidas rótulo simples + title', (await txt('#metro-follow')) === 'BPM da música' && (await page.$eval('#metro-follow', (e) => e.title)) === 'Abra uma música com batidas')
+  T('Follow: não está aceso sem batidas', !(await page.$eval('#metro-follow', (e) => e.classList.contains('on'))))
+  await post('/__reset')
+  await page.$eval('#metro-follow', (e) => e.click()); await sleep(100)
+  T('Follow: desabilitado não manda comando', (await cmdsOf('metronomeFollow')).length === 0)
+  await post('/__state', mkState({ songBpm: 73 })); await sleep(150)
+  T('Follow: com batidas habilitado', !(await page.$eval('#metro-follow', (e) => e.disabled)))
+  T('Follow: rótulo com o número', (await txt('#metro-follow')) === 'BPM da música · 73', await txt('#metro-follow'))
+  T('Follow: apagado quando follow=false', !(await page.$eval('#metro-follow', (e) => e.classList.contains('on'))))
+  T('Follow: alvo >= 56 px', (await rectH('#metro-follow')) >= 56)
+  await tap('#metro-follow'); await sleep(150)
+  T('Follow: toque manda metronomeFollow', (await cmdsOf('metronomeFollow')).length === 1)
+  await post('/__state', mkState({ songBpm: 73, follow: true })); await sleep(150)
+  T('Follow: aceso quando follow=true', await page.$eval('#metro-follow', (e) => e.classList.contains('on')))
+  await post('/__state', mkState({ songBpm: 128, follow: false })); await sleep(150)
+  T('Follow: rótulo acompanha o songBpm novo', (await txt('#metro-follow')) === 'BPM da música · 128')
+
+  // ---- TAP medido no celular (relógio da página congelado para não ter jitter) ----
+  await page.evaluate(() => { const real = Date.now; window.__fake = null; Date.now = function () { return window.__fake !== null ? window.__fake : real.call(Date) } })
+  const clock = (v) => page.evaluate((v) => { window.__fake = v }, v)
+  const tapAt = async (v) => { await clock(v); await tap('#metro-tap') }
+  const bpmCmds = async () => (await cmdsOf('metronomeBpm')).map((c) => c.value)
+  await post('/__state', mkState({ bpm: 90 })); await sleep(150)
+  await post('/__reset')
+  const T0 = Date.now() + 50000
+  await tapAt(T0); await sleep(120)
+  T('TAP: 1o toque não manda nada', (await bpmCmds()).length === 0 && (await getLog()).cmds.length === 0)
+  T('TAP: 1o toque não muda o rótulo', (await txt('#metro-bpm')) === '90 BPM')
+  await tapAt(T0 + 500); await sleep(150)
+  T('TAP: 2 toques a 500 ms mandam metronomeBpm 120', (await bpmCmds()).join() === '120', await bpmCmds())
+  T('TAP: rótulo mostra 120 na hora (estado ainda diz 90)', (await txt('#metro-bpm')) === '120 BPM', await txt('#metro-bpm'))
+  await tapAt(T0 + 1000); await tapAt(T0 + 1500); await sleep(150)
+  T('TAP: mesmo valor não repete em sequência', (await bpmCmds()).join() === '120', await bpmCmds())
+  await tapAt(T0 + 5000); await sleep(150)
+  T('TAP: pausa de 3,5 s recomeça (1o toque depois não manda BPM)', (await bpmCmds()).length === 1, await bpmCmds())
+  await tapAt(T0 + 5600); await sleep(150)
+  T('TAP: depois de recomeçar mede de novo (100 BPM a 600 ms)', (await bpmCmds()).join() === '120,100', await bpmCmds())
+  // janela de 5 toques: 6 toques 500,500,500,500 e 1000 -> só os 5 últimos contam (96)
+  await post('/__reset')
+  const T1 = T0 + 20000
+  const offs = [0, 500, 1000, 1500, 2000, 3000]
+  for (const o of offs) await tapAt(T1 + o)
+  await sleep(150)
+  T('TAP: usa só os 5 últimos toques', (await bpmCmds()).slice(-1)[0] === 96, await bpmCmds())
+  // limites 30..300
+  await post('/__reset')
+  const T2 = T0 + 40000
+  await tapAt(T2); await tapAt(T2 + 100); await sleep(150)
+  T('TAP: rápido demais limita em 300', (await bpmCmds()).join() === '300', await bpmCmds())
+  T('TAP: rótulo limitado em 300', (await txt('#metro-bpm')) === '300 BPM')
+  await post('/__reset')
+  const T3 = T0 + 60000
+  await tapAt(T3); await tapAt(T3 + 2000); await sleep(150)
+  T('TAP: 2000 ms entre toques = 30 (piso)', (await bpmCmds()).join() === '30', await bpmCmds())
+  await post('/__reset')
+  const T4 = T0 + 80000
+  await tapAt(T4); await tapAt(T4 + 1); await sleep(150)
+  T('TAP: 1 ms entre toques limita em 300', (await bpmCmds()).join() === '300', await bpmCmds())
+  await clock(null)
+  await sleep(1800)
+  T('TAP: rótulo volta ao BPM do estado depois de ~1,5 s', (await txt('#metro-bpm')) === '90 BPM', await txt('#metro-bpm'))
+  T('TAP: nunca mandou metronomeTap', (await cmdsOf('metronomeTap')).length === 0)
+  T('TAP: valores sempre inteiros em 30..300', (await bpmCmds()).every((v) => Number.isInteger(v) && v >= 30 && v <= 300))
+  await post('/__reset')
+  await tap('#metro-bpm-plus'); await tap('#metro-bpm-minus'); await sleep(200)
+  T('BPM -/+ do metrônomo seguem mandando 91 e 89', (await bpmCmds()).join() === '91,89', await bpmCmds())
+  T('TAP/BPM: botões >= 56 px', (await rectH('#metro-tap')) >= 56 && (await rectH('#metro-bpm-plus')) >= 56 && (await rectH('#metro-bpm-minus')) >= 56)
+
+  // ---- seletores de lado no PAN L/R ----
+  await post('/__state', mkState({ side: 'left' }, { pad: { side: 'right' }, top: { outputSplit: false } })); await sleep(150)
+  T('Lados: ocultos com PAN L/R desligado', !(await visible('#sides')))
+  T('Lados: sliders de pan normais com PAN L/R desligado', !(await page.$eval('#metro-pan', (e) => e.disabled)) && !(await page.$eval('#pad-pan', (e) => e.disabled)) && (await page.$eval('#metro-pan-row', (e) => getComputedStyle(e).opacity)) === '1')
+  await post('/__state', mkState({ side: 'left' }, { pad: { side: 'right' }, top: { outputSplit: true } })); await sleep(150)
+  T('Lados: visíveis com PAN L/R ligado', await visible('#sides'))
+  T('Lados: texto curto', /PAN L\/R ligado: escolha o lado de cada um\./.test(await txt('#sides .sidenote')))
+  T('Lados: rótulos Metrônomo e Pad', (await texts('#sides .lbl')).join() === 'Metrônomo,Pad')
+  T('Lados: 3 botões L, L+R, R em cada', (await texts('#seg-metro button')).join() === 'L,L+R,R' && (await texts('#seg-pad button')).join() === 'L,L+R,R')
+  const on = (sel) => page.$$eval(sel + ' button', (bs) => bs.filter((b) => b.classList.contains('on')).map((b) => b.getAttribute('data-side')).join())
+  T('Lados: realce do metrônomo = left', (await on('#seg-metro')) === 'left', await on('#seg-metro'))
+  T('Lados: realce do pad = right', (await on('#seg-pad')) === 'right', await on('#seg-pad'))
+  T('Lados: aria-pressed acompanha', (await page.$eval('#seg-metro button[data-side=left]', (e) => e.getAttribute('aria-pressed'))) === 'true' && (await page.$eval('#seg-metro button[data-side=both]', (e) => e.getAttribute('aria-pressed'))) === 'false')
+  T('Lados: sliders de pan desabilitados e esmaecidos', (await page.$eval('#metro-pan', (e) => e.disabled)) && (await page.$eval('#pad-pan', (e) => e.disabled)) && parseFloat(await page.$eval('#metro-pan-row', (e) => getComputedStyle(e).opacity)) < 0.6 && parseFloat(await page.$eval('#pad-pan-row', (e) => getComputedStyle(e).opacity)) < 0.6)
+  const smalls = await page.$$eval('#sides button', (bs) => bs.map((b) => Math.round(b.getBoundingClientRect().height)).filter((h) => h < 56))
+  T('Lados: alvos >= 56 px', smalls.length === 0, smalls)
+  await post('/__reset')
+  await tap('#seg-metro button[data-side=right]'); await sleep(120)
+  await tap('#seg-pad button[data-side=both]'); await sleep(120)
+  await tap('#seg-metro button[data-side=left]'); await sleep(120)
+  await tap('#seg-pad button[data-side=left]'); await sleep(150)
+  const sideCmds = (await getLog()).cmds.map((c) => c.type + ':' + c.value).join()
+  T('Lados: toques mandam metronomeSide/padSide certos', sideCmds === 'metronomeSide:right,padSide:both,metronomeSide:left,padSide:left', sideCmds)
+  await post('/__state', mkState({ side: 'right' }, { pad: { side: 'both' }, top: { outputSplit: true } })); await sleep(150)
+  T('Lados: realce segue o estado novo', (await on('#seg-metro')) === 'right' && (await on('#seg-pad')) === 'both')
+  await post('/__state', mkState({ side: 'both' }, { top: { outputSplit: false } })); await sleep(150)
+  T('Lados: somem ao desligar o PAN L/R', !(await visible('#sides')) && !(await page.$eval('#metro-pan', (e) => e.disabled)))
+  // pan normal ainda manda comando com PAN L/R desligado
+  await post('/__reset')
+  await page.$eval('#metro-pan', (e) => { e.value = '40'; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })) }); await sleep(150)
+  T('Pan do metrônomo (PAN L/R desligado) manda metronomePan 0.4', (await cmdsOf('metronomePan')).some((c) => c.value === 0.4))
+  // estado antigo (sem os campos novos) não quebra a página
+  await post('/__state', Object.assign({}, song, { metronome: { playing: false, bpm: 100, pan: 0 }, pad: { playing: false, key: 0, volume: 0.7, pan: 0 } })); await sleep(150)
+  T('Estado sem os campos novos: follow desabilitado, lados ocultos', (await page.$eval('#metro-follow', (e) => e.disabled)) && !(await visible('#sides')))
+
+  // ---- capturas e geometria: 390x844 e 820x1180, PAN L/R desligado e ligado ----
+  for (const [w, hgt, tag] of [[390, 844, '390x844'], [820, 1180, '820x1180'], [360, 740, '360x740'], [1180, 820, '1180x820'], [844, 390, '844x390']]) {
+    await page.setViewport({ width: w, height: hgt, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
+    await page.reload({ waitUntil: 'load' })
+    await page.waitForSelector('#app:not([hidden])')
+    await goTab('play')
+    for (const split of [false, true]) {
+      await post('/__state', mkState({ bpm: 120, songBpm: 73, follow: split, side: 'left', playing: true }, { pad: { playing: true, key: 2, side: 'right' }, top: { outputSplit: split } }))
+      await sleep(400)
+      await page.$eval('#view-play', (e) => { e.scrollTop = 0 })
+      const name = 'metro-' + tag + (split ? '-split' : '-nosplit')
+      await page.screenshot({ path: path.join(SHOTS, name + '.png') })
+      const g = await page.evaluate(() => {
+        const v = document.getElementById('view-play')
+        const gc = document.getElementById('global-controls')
+        const bad = []
+        gc.querySelectorAll('button, input[type=range]').forEach((b) => {
+          const r = b.getBoundingClientRect()
+          if (r.width === 0 || b.closest('[hidden]')) return
+          if (r.height < 55.5 && !b.classList.contains('note')) bad.push([b.id || b.textContent.trim(), Math.round(r.width), Math.round(r.height)])
+          if (r.right > window.innerWidth + 0.5 || r.left < -0.5) bad.push(['fora da tela', b.id || b.textContent.trim()])
+        })
+        const txtClip = []
+        gc.querySelectorAll('.bpmval, .tog, .sidenote, .lbl, .seg button, .tap').forEach((e) => { if (e.scrollWidth > e.clientWidth + 1 && e.clientWidth) txtClip.push([e.id || e.textContent.trim().slice(0, 20), e.scrollWidth, e.clientWidth]) })
+        return { h: [document.documentElement.scrollWidth, window.innerWidth, v.scrollWidth, v.clientWidth, gc.scrollWidth, gc.clientWidth], bad, txtClip }
+      })
+      T('Metrônomo ' + tag + (split ? ' PAN L/R ligado' : ' desligado') + ': sem rolagem horizontal', g.h[0] <= g.h[1] && g.h[2] <= g.h[3] && g.h[4] <= g.h[5], g.h)
+      T('Metrônomo ' + tag + (split ? ' PAN L/R ligado' : ' desligado') + ': alvos >= 56 px e dentro da tela', g.bad.length === 0, g.bad)
+      T('Metrônomo ' + tag + (split ? ' PAN L/R ligado' : ' desligado') + ': texto sem corte', g.txtClip.length === 0, g.txtClip)
+    }
+  }
+
+  // ---- compatibilidade (iOS 12+): nada de sintaxe nova nem URL externa no arquivo ----
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'src', 'main', 'remote', 'page.html'), 'utf8')
+  const js = src.slice(src.indexOf('<script>'))
+  T('Compat: sem ?. ?? => const let async await template literal .at( replaceAll', !/\?\.[A-Za-z_\[(]|\?\?|=>|\bconst\s|\blet\s|\basync\b|\bawait\b|`|\.at\(|replaceAll/.test(js))
+  T('Compat: sem URL externa nem innerHTML', !/https?:\/\//.test(src) && !/innerHTML|outerHTML|insertAdjacentHTML/.test(js))
+
   // ================= 8. fim =================
   T('Sem erros de JS/console/CSP', errors.length === 0, errors)
   T('Nenhuma requisição externa', extReq.length === 0, extReq)
