@@ -277,19 +277,6 @@ function sectionsArgs(videoId: string): string[] {
   ]
 }
 
-/* seções automáticas logo depois das batidas. Não é fatal: sem elas a música
-   entra na biblioteca e o player oferece "detectar seções" depois */
-async function detectSections(job: ActiveJob): Promise<void> {
-  if (!(await ensureSectionsEngine())) return
-  if (job.cancelled || !jobs.has(job.videoId)) throw new Error('cancelled')
-  progress(job, 'finalize', 0, 'Detecting sections')
-  try {
-    await runProcess(job, venvPython(), sectionsArgs(job.videoId))
-  } catch (err) {
-    if (err instanceof Error && err.message === 'cancelled') throw err
-  }
-}
-
 function chordsArgs(videoId: string): string[] {
   return [
     chordsScript(),
@@ -309,7 +296,7 @@ function chordsArgs(videoId: string): string[] {
   ]
 }
 
-/* acordes logo depois das seções. Não é fatal: sem eles a música entra na
+/* acordes logo depois das batidas. Não é fatal: sem eles a música entra na
    biblioteca e o player detecta ao abrir */
 async function detectChords(job: ActiveJob): Promise<void> {
   if (!(await ensureChordsEngine())) return
@@ -428,7 +415,6 @@ export async function addStems(videoId: string, extra: string[]): Promise<void> 
     const produced = await runSeparation(job, plan, wanted)
     if (job.cancelled || !jobs.has(videoId)) throw new Error('cancelled')
     if (!loadBeats(videoId)) await detectBeats(job)
-    if (!loadSections(videoId)) await detectSections(job)
     rmSync(backup, { recursive: true, force: true })
     const updated = {
       ...song,
@@ -563,7 +549,6 @@ export async function startJob(
     const producedStems = await runSeparation(job, plan, stems)
     if (job.cancelled || !jobs.has(videoId)) return
     await detectBeats(job)
-    await detectSections(job)
     await detectChords(job)
     finalizeJob(job, { title: meta!.title, duration: meta!.duration, addedAt, startedAt }, producedStems)
   } catch (err) {
@@ -631,7 +616,6 @@ export async function startLocalJob(
     const producedStems = await runSeparation(job, plan, stems)
     if (job.cancelled || !jobs.has(videoId)) return
     await detectBeats(job)
-    await detectSections(job)
     await detectChords(job)
     finalizeJob(job, { title, duration, addedAt, startedAt, source: 'local' }, producedStems)
   } catch (err) {

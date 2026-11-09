@@ -144,6 +144,7 @@ const SECTIONS_PKGS = [
   'madmom-infer==0.2.0',
   'demucs-infer==4.4.0',
   'hydra-core==1.3.7',
+  'antlr4-python3-runtime==4.9.3',
   'scipy==1.15.3',
   'soundfile==0.14.0',
   'cffi',
@@ -162,7 +163,9 @@ let sectionsEnginePromise: Promise<boolean> | null = null
 
 export function ensureSectionsEngine(): Promise<boolean> {
   const marker = join(sectionsLibDir(), '.ready')
-  if (existsSync(marker)) return Promise.resolve(true)
+  if (existsSync(marker) && readFileSync(marker, 'utf8') === SECTIONS_PKGS.join('\n')) {
+    return Promise.resolve(true)
+  }
   if (!sectionsEnginePromise) {
     sectionsEnginePromise = (async () => {
       sendEnvEvent('Installing the sections engine…')

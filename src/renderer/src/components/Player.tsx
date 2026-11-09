@@ -134,7 +134,7 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
   }, [])
   const [pans, setPans] = useState<Partial<Record<StemId, number>>>({})
   const [eqs, setEqs] = useState<Partial<Record<StemId, Eq>>>({})
-  const [showSections, setShowSections] = useState(true)
+  const [showSections, setShowSections] = useState(false)
   const [loopA, setLoopA] = useState<number | null>(null)
   const [loopB, setLoopB] = useState<number | null>(null)
   const [loopOn, setLoopOn] = useState(false)
@@ -147,8 +147,8 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
   const [chordsBusy, setChordsBusy] = useState(false)
   const [chordsError, setChordsError] = useState<string | null>(null)
   const [showChords, setShowChords] = useState(true)
-  // já sabemos se a música tem batidas/seções/acordes salvos (para detectar sozinho se não tiver)
-  const [checked, setChecked] = useState({ beats: false, sections: false, chords: false })
+  // batidas e acordes são detectados automaticamente quando ainda não existem
+  const [checked, setChecked] = useState({ beats: false, chords: false })
   const [sectionsBusy, setSectionsBusy] = useState(false)
   const [sectionsError, setSectionsError] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
@@ -201,7 +201,7 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
     setAnalyzing(false)
 
     let cancelled = false
-    setChecked({ beats: false, sections: false, chords: false })
+    setChecked({ beats: false, chords: false })
     setChords(null)
     setChordsError(null)
     setChordsBusy(false)
@@ -230,7 +230,6 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
     void window.stemkit.getSections(song.videoId).then((map) => {
       if (cancelled) return
       setSections(map)
-      setChecked((c) => ({ ...c, sections: true }))
     })
     setDecoding(true)
     const savedMix = window.stemkit.getMix(song.videoId).catch(() => null)
@@ -802,14 +801,10 @@ export function Player({ song, settings, onBack, scene, onEnded, autoPlay, onPla
   }
   useEffect(() => registerCommandHandler((c) => commandRef.current(c)), [])
 
-  // música sem batidas ou sem seções (separada antes, ou a detecção falhou): detecta
-  // sozinho uma vez ao abrir; se der erro, fica o aviso e o menu ⋮ para tentar de novo
+  // música sem batidas: detecta sozinho uma vez ao abrir
   useEffect(() => {
     if (checked.beats && !beats && !analyzing && !clickError) analyzeBeats()
   }, [checked.beats])
-  useEffect(() => {
-    if (checked.sections && !sections && !sectionsBusy && !sectionsError) analyzeSections()
-  }, [checked.sections])
   useEffect(() => {
     if (checked.chords && !chords && beats && !chordsBusy && !chordsError) analyzeChords()
   }, [checked.chords, beats])
